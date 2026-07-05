@@ -7,16 +7,16 @@ from sklearn.neighbors import NearestNeighbors
 def knn_numpy_brute_force(features, k, chunk_size=2048, max_mem_bytes=512 * 1024 * 1024):
     """Computes exact k-nearest neighbors using a brute-force numpy approach.
 
-    Utilizes the squared distance expansion and matrix multiplication for optimized
-    throughput. The computation is chunked over the query rows to constrain memory 
-    usage. Distance to self is explicitly excluded.
+    This function calculates pairwise Euclidean distances using vectorization and matrix
+    multiplication.
 
     :param features: Feature matrix of shape (N, D).
     :type features: numpy.ndarray
     :param k: Number of nearest neighbors to find (excluding the point itself).
     :type k: int
-    :param chunk_size: Number of query rows to process simultaneously.
-    :type chunk_size: int
+    :param max_mem_bytes: Maximum memory allowance in bytes for the chunk computation.
+                          Defaults to 512 MB.
+    :type max_mem_bytes: int, optional
     :return: A tuple of (distances, indices) arrays, each of shape (N, k).
     :rtype: tuple[numpy.ndarray, numpy.ndarray]
     """
@@ -54,18 +54,18 @@ def knn_numpy_brute_force(features, k, chunk_size=2048, max_mem_bytes=512 * 1024
     return nearest_distances, nearest_indices
 
 def knn_cupy_brute_force(features, k, chunk_size=2048, max_vram_bytes=512 * 1024 * 1024):
-    """Computes exact k-nearest neighbors using a brute-force approach on an NVIDIA GPU using CuPy.
+    """Computes exact k-nearest neighbors using CuPy.
 
-    Utilizes the squared distance expansion and matrix multiplication for optimized
-    throughput. The computation is chunked over the query rows to constrain memory 
-    usage. Distance to self is explicitly excluded.
+    This function accelerates the brute-force pairwise distance calculation using GPU
+    matrix operations.
 
     :param features: Feature matrix of shape (N, D).
     :type features: numpy.ndarray
     :param k: Number of nearest neighbors to find (excluding the point itself).
     :type k: int
-    :param chunk_size: Number of query rows to process simultaneously.
-    :type chunk_size: int
+    :param max_vram_bytes: Maximum VRAM allowance in bytes for the chunk computation.
+                           Defaults to 512 MB.
+    :type max_vram_bytes: int, optional
     :return: A tuple of (distances, indices) arrays, each of shape (N, k).
     :rtype: tuple[numpy.ndarray, numpy.ndarray]
     """
@@ -116,7 +116,7 @@ def knn_cupy_brute_force(features, k, chunk_size=2048, max_vram_bytes=512 * 1024
 def knn_scipy_ckdtree(features, k):
     """Computes exact k-nearest neighbors using scipy's cKDTree.
 
-    Builds an axis-aligned KD-tree and queries it in parallel.
+    Builds an axis-aligned KD-tree and queries it in parallel across all CPU cores.
     The query searches for k+1 neighbors and discards the first one (self).
 
     :param features: Feature matrix of shape (N, D).
@@ -133,12 +133,17 @@ def knn_scipy_ckdtree(features, k):
 
 
 def knn_sklearn_kdtree(features, k, leaf_size=100):
-    """Computes exact k-nearest neighbors using scikit-learn's KDTree.
+    """Computes exact k-nearest neighbors using scikit-learn's KDTree via NearestNeighbors.
+
+    Wrapped in the NearestNeighbors estimator to enable joblib-based multiprocessing.
+    Space is partitioned using axis-aligned hyperplanes.
 
     :param features: Feature matrix of shape (N, D).
     :type features: numpy.ndarray
     :param k: Number of nearest neighbors to find.
     :type k: int
+    :param leaf_size: Number of points at which to switch to brute-force.
+    :type leaf_size: int, optional
     :return: A tuple of (distances, indices) arrays, each of shape (N, k).
     :rtype: tuple[numpy.ndarray, numpy.ndarray]
     """
@@ -154,15 +159,17 @@ def knn_sklearn_kdtree(features, k, leaf_size=100):
     return distances[:, 1:].astype(np.float32), indices[:, 1:]
 
 def knn_sklearn_balltree(features, k, leaf_size=100):
-    """Computes exact k-nearest neighbors using scikit-learn's BallTree.
+    """Computes exact k-nearest neighbors using scikit-learn's BallTree via NearestNeighbors.
 
-    Uses nested hyperspheres to partition the space, which can be more 
-    efficient than KDTree in higher dimensional spaces.
+    Wrapped in the NearestNeighbors estimator to enable joblib-based multiprocessing.
+    Space is partitioned using nested hyperspheres.
 
     :param features: Feature matrix of shape (N, D).
     :type features: numpy.ndarray
     :param k: Number of nearest neighbors to find.
     :type k: int
+    :param leaf_size: Number of points at which to switch to brute-force.
+    :type leaf_size: int, optional
     :return: A tuple of (distances, indices) arrays, each of shape (N, k).
     :rtype: tuple[numpy.ndarray, numpy.ndarray]
     """
