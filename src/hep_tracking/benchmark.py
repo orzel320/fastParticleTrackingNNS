@@ -14,22 +14,10 @@ from hep_tracking.models import (
     knn_sklearn_kdtree,
     knn_sklearn_balltree,
 )
+from hep_tracking.plots import plot_3d_hits, plot_distance_distributions
 
 
 def measure_execution_time(target_function, num_runs=3, warmup_runs=1):
-    """Measures the minimum execution time of a function over multiple runs.
-
-    Includes a warm-up phase to avoid initialization overhead in the final timing.
-
-    :param target_function: A callable function taking no arguments to be timed.
-    :type target_function: callable
-    :param num_runs: Number of timed executions.
-    :type num_runs: int
-    :param warmup_runs: Number of un-timed warm-up executions.
-    :type warmup_runs: int
-    :return: The minimum execution time across all timed runs in seconds.
-    :rtype: float
-    """
     for _ in range(warmup_runs):
         target_function()
 
@@ -42,18 +30,31 @@ def measure_execution_time(target_function, num_runs=3, warmup_runs=1):
     return min(execution_times)
 
 
-def run_scaling_benchmark(data_dir="data", output_plot="scaling.png"):
-    """Runs the kNN scaling benchmark and generates a log-log scaling plot.
+def generate_sanity_plots(dataset_path: Path):
+    dataset_file = dataset_path / "dataset_hard_10k.npz"
+    
+    if not dataset_file.exists():
+        print(f"Sanity dataset {dataset_file.name} not found. Skipping plots.")
+        return
 
-    Evaluates exact kNN retrieval methods for k=5 across varying dataset sizes
-    (1k, 10k, 100k, 1M) and dataset difficulties (easy, hard).
+    loaded_data = np.load(dataset_file)
+    features = loaded_data["X"]
+    labels = loaded_data["y"]
 
-    :param data_dir: Directory containing the generated '.npz' datasets.
-    :type data_dir: str
-    :param output_plot: Path where the resulting plot will be saved.
-    :type output_plot: str
-    """
+    scatter_output = "scatter_3d.pdf"
+    plot_3d_hits(features, labels, output_path=scatter_output)
+    print(f" Saved 3D scatter plot to {scatter_output}")
+
+    hist_output = "distances_hist.pdf"
+    plot_distance_distributions(features, labels, output_path=hist_output)
+    print(f" Saved distance histograms to {hist_output}")
+
+
+def run_scaling_benchmark(data_dir="data", output_plot="scaling.pdf"):
     dataset_path = Path(data_dir)
+    
+    generate_sanity_plots(dataset_path)
+
     target_sizes = {"1k": 1000, "10k": 10000, "100k": 100000, "1M": 1000000}
     dataset_modes = ["easy", "hard"]
     k_neighbors = 5
@@ -62,8 +63,8 @@ def run_scaling_benchmark(data_dir="data", output_plot="scaling.png"):
         "Numpy Brute Force": knn_numpy_brute_force,
         "CuPy Brute Force": knn_cupy_brute_force,
         "Scipy cKDTree": knn_scipy_ckdtree,
-        "Sklearn KDTree": knn_sklearn_kdtree,
-        "Sklearn BallTree": knn_sklearn_balltree,
+        "Sklearn KDTree (Opt)": knn_sklearn_kdtree,
+        "Sklearn BallTree (Opt)": knn_sklearn_balltree,
     }
 
     results = {
@@ -87,11 +88,10 @@ def run_scaling_benchmark(data_dir="data", output_plot="scaling.png"):
             print(f" Loaded {size_label} ({features.shape[0]} hits)")
 
             for method_name, method_callable in methods.items():
-                if method_name in ["Numpy Brute Force", "CuPy Brute Force"] and size_val > 100000:
-                    print(f"  Skipping {method_name} for {size_label} (too slow)")
+                if (method_name == "Numpy Brute Force" or method_name == "CuPy Brute Force") and size_val > 100000:
+                    print(f"Skipping {method_name} for {size_label} (too slow)")
                     results[mode][method_name].append(None)
                     continue
-
                 def benchmark_wrapper():
                     method_callable(features, k_neighbors)
 
