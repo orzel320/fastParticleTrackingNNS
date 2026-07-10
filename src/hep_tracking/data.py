@@ -132,13 +132,15 @@ def generate_datasets(output_dir="data"):
     for mode_name, parameters in generation_modes.items():
         print(f"--- Generating mode: {mode_name.upper()} ---")
         for size_label, total_hits in target_sizes.items():
-            
+
             # Ustalanie liczby zdarzeń (np. 1M / 100k = 10 zdarzeń)
             n_events = max(1, total_hits // max_hits_per_event)
             hits_per_event = total_hits // n_events
-            
+
             n_noise_hits = int(hits_per_event * parameters["noise_ratio"])
-            n_tracks_per_event = (hits_per_event - n_noise_hits) // parameters["hits_per_track"]
+            n_tracks_per_event = (hits_per_event - n_noise_hits) // parameters[
+                "hits_per_track"
+            ]
 
             all_features = []
             all_labels = []
@@ -154,7 +156,7 @@ def generate_datasets(output_dir="data"):
                     sigma_dir=parameters["sigma_dir"],
                     vertex_spread=parameters["vertex_spread"],
                 )
-                
+
                 signal_mask = labels != -1
                 labels[signal_mask] += global_track_offset
                 global_track_offset += n_tracks_per_event
@@ -171,12 +173,11 @@ def generate_datasets(output_dir="data"):
 
             filename = output_path / f"dataset_{mode_name}_{size_label}.npz"
             np.savez_compressed(
-                filename, 
-                X=final_features, 
-                y=final_labels, 
-                event_id=final_event_ids
+                filename, X=final_features, y=final_labels, event_id=final_event_ids
             )
-            print(f"Saved: {filename.name} (Hits: {final_features.shape[0]}, Tracks: {global_track_offset}, Events: {n_events})")
+            print(
+                f"Saved: {filename.name} (Hits: {final_features.shape[0]}, Tracks: {global_track_offset}, Events: {n_events})"
+            )
 
 
 if __name__ == "__main__":

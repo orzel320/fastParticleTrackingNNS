@@ -1,5 +1,6 @@
 import time
 
+
 def measure_execution_time(target_function, num_runs=3, warmup_runs=1):
     """Measures the minimum execution time of a function over multiple runs.
 
@@ -26,7 +27,9 @@ def measure_execution_time(target_function, num_runs=3, warmup_runs=1):
 
     return min(execution_times)
 
+
 import numpy as np
+
 
 def calculate_recall(true_indices: np.ndarray, pred_indices: np.ndarray) -> float:
     """Calculates the recall of an Approximate Nearest Neighbors (ANN) search.
@@ -39,7 +42,7 @@ def calculate_recall(true_indices: np.ndarray, pred_indices: np.ndarray) -> floa
         float: The mean recall score across all queries, ranging from 0.0 to 1.0.
     """
     n_samples, k_neighbors = true_indices.shape
-    
+
     hits = (true_indices[:, :, None] == pred_indices[:, None, :]).any(axis=2).sum()
-    
+
     return float(hits) / (n_samples * k_neighbors)

@@ -4,6 +4,7 @@ import hnswlib
 
 _GPU_RES = faiss.StandardGpuResources()
 
+
 class FaissIVFFlat:
     """Approximate Nearest Neighbors using FAISS Inverted File index.
 
@@ -39,9 +40,11 @@ class FaissIVFFlat:
         """
         features_contig = np.ascontiguousarray(features, dtype=np.float32)
         dimension = features_contig.shape[1]
-        
+
         quantizer = faiss.IndexFlatL2(dimension)
-        cpu_index = faiss.IndexIVFFlat(quantizer, dimension, self.nlist, faiss.METRIC_L2)
+        cpu_index = faiss.IndexIVFFlat(
+            quantizer, dimension, self.nlist, faiss.METRIC_L2
+        )
 
         if self.use_gpu:
             self.index = faiss.index_cpu_to_gpu(_GPU_RES, 0, cpu_index)
@@ -64,10 +67,10 @@ class FaissIVFFlat:
         """
         features_contig = np.ascontiguousarray(features, dtype=np.float32)
         distances, indices = self.index.search(features_contig, k + 1)
-        
+
         if self.use_gpu:
             _GPU_RES.syncDefaultStreamCurrentDevice()
-            
+
         return distances[:, 1:], indices[:, 1:]
 
 
@@ -86,7 +89,14 @@ class FaissIVFPQ:
         index (faiss.Index): The underlying FAISS index object.
     """
 
-    def __init__(self, nlist: int = 100, m: int = 5, nbits: int = 8, nprobe: int = 1, use_gpu: bool = False):
+    def __init__(
+        self,
+        nlist: int = 100,
+        m: int = 5,
+        nbits: int = 8,
+        nprobe: int = 1,
+        use_gpu: bool = False,
+    ):
         """Initializes the FAISS IVFPQ wrapper.
 
         Args:
@@ -111,17 +121,21 @@ class FaissIVFPQ:
                       C-contiguous float32 array as required by FAISS.
 
         Raises:
-            ValueError: If the feature dimension is not divisible by the number 
+            ValueError: If the feature dimension is not divisible by the number
                         of subquantizers (m).
         """
         features_contig = np.ascontiguousarray(features, dtype=np.float32)
         dimension = features_contig.shape[1]
 
         if dimension % self.m != 0:
-            raise ValueError(f"Wymiar przestrzeni ({dimension}) musi być podzielny przez m ({self.m}).")
+            raise ValueError(
+                f"Wymiar przestrzeni ({dimension}) musi być podzielny przez m ({self.m})."
+            )
 
         quantizer = faiss.IndexFlatL2(dimension)
-        cpu_index = faiss.IndexIVFPQ(quantizer, dimension, self.nlist, self.m, self.nbits)
+        cpu_index = faiss.IndexIVFPQ(
+            quantizer, dimension, self.nlist, self.m, self.nbits
+        )
 
         if self.use_gpu:
             self.index = faiss.index_cpu_to_gpu(_GPU_RES, 0, cpu_index)
@@ -144,10 +158,10 @@ class FaissIVFPQ:
         """
         features_contig = np.ascontiguousarray(features, dtype=np.float32)
         distances, indices = self.index.search(features_contig, k + 1)
-        
+
         if self.use_gpu:
             _GPU_RES.syncDefaultStreamCurrentDevice()
-            
+
         return distances[:, 1:], indices[:, 1:]
 
 
@@ -165,7 +179,13 @@ class HnswGraph:
         index (hnswlib.Index): The underlying HNSW index object.
     """
 
-    def __init__(self, m: int = 16, ef_construction: int = 200, ef: int = 50, num_threads: int = -1):
+    def __init__(
+        self,
+        m: int = 16,
+        ef_construction: int = 200,
+        ef: int = 50,
+        num_threads: int = -1,
+    ):
         """Initializes the HNSW graph wrapper.
 
         Args:
@@ -190,8 +210,10 @@ class HnswGraph:
         features_contig = np.ascontiguousarray(features, dtype=np.float32)
         n_samples, dimension = features_contig.shape
 
-        self.index = hnswlib.Index(space='l2', dim=dimension)
-        self.index.init_index(max_elements=n_samples, ef_construction=self.ef_construction, M=self.m)
+        self.index = hnswlib.Index(space="l2", dim=dimension)
+        self.index.init_index(
+            max_elements=n_samples, ef_construction=self.ef_construction, M=self.m
+        )
         self.index.set_num_threads(self.num_threads)
         self.index.add_items(features_contig)
         self.index.set_ef(self.ef)
@@ -207,7 +229,7 @@ class HnswGraph:
             A tuple of (distances, indices) arrays, each of shape (N, k).
         """
         features_contig = np.ascontiguousarray(features, dtype=np.float32)
-        
+
         indices, distances = self.index.knn_query(features_contig, k=k + 1)
-        
+
         return distances[:, 1:].astype(np.float32), indices[:, 1:]
