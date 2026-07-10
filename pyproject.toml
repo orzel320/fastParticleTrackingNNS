@@ -14,7 +14,9 @@ dependencies = [
     "scikit-learn",
     "matplotlib",
     "tqdm",
-    "cupy"
+    "cupy",
+    "hnswlib",
+    "faiss-gpu"
 ]
 
 [project.optional-dependencies]

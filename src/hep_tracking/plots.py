@@ -58,7 +58,7 @@ def plot_3d_hits(features, labels, output_path=None):
 def plot_distance_distributions(features, labels, output_path=None, sample_size=2000):
     """Plots histograms of pairwise distances for same-track vs. cross-track hits.
 
-    Sub-samples the data if it exceeds sample_size to prevent memory explosion 
+    Sub-samples the data if it exceeds sample_size to prevent memory explosion
     during pairwise distance calculation.
 
     :param features: Feature matrix of shape (N, 5).

@@ -1,24 +1,25 @@
-.PHONY: all clean install generate test benchmark
-
-all: install clean generate test benchmark
-
-all2: clean generate test benchmark
+.PHONY: all clean install data_pipeline generate candidates test
+	
+all: install clean data_pipeline test
 
 install:
-	pip install -e .[dev]
+	python -m pip install -e .[dev]
 
 clean:
 	rm -rf data/
-	rm -f scaling.png
 	rm -rf .pytest_cache/
+	rm -rf .ipynb_checkpoints/
 	rm -rf src/hep_tracking/__pycache__/
 	rm -rf tests/__pycache__/
+	rm -rf *.egg-info
+
+data_pipeline: generate candidates
 
 generate:
 	python src/hep_tracking/data.py
 
+candidates:
+	python src/hep_tracking/generate_candidates.py
+
 test:
 	pytest tests/
-
-benchmark: generate
-	python src/hep_tracking/benchmark.py
