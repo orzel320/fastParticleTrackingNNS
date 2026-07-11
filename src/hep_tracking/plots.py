@@ -112,3 +112,131 @@ def plot_distance_distributions(features, labels, output_path=None, sample_size=
         plt.show()
 
     plt.close(figure)
+
+def plot_pareto_frontier(results: dict, title: str = "Wydajność algorytmów ANN: Recall vs. QPS", output_path: str = None):
+    """Plots the Recall vs. QPS Pareto frontier for different ANN models.
+
+    Args:
+        results (dict): Dictionary containing plotting data. Expected format:
+                        {'ModelName': {'recall': [...], 'qps': [...], 'labels': [...]}}
+        title (str): Title of the plot.
+        output_path (str, optional): If provided, saves the plot to this path instead of showing it.
+    """
+    plt.figure(figsize=(10, 7))
+
+    colors = {"IVFFlat": "blue", "IVFPQ": "green", "HNSW": "red"}
+    markers = {"IVFFlat": "o", "IVFPQ": "s", "HNSW": "^"}
+
+    for name, data in results.items():
+        c = colors.get(name, "black")
+        m = markers.get(name, "x")
+        
+        plt.plot(
+            data["recall"], data["qps"], 
+            marker=m, color=c, 
+            linestyle='-', linewidth=2, markersize=8, label=name
+        )
+        
+        if "labels" in data:
+            for i, label in enumerate(data["labels"]):
+                if i % 2 == 0 or i == len(data["labels"]) - 1:
+                    plt.annotate(
+                        label, (data["recall"][i], data["qps"][i]), 
+                        textcoords="offset points", xytext=(0, 10), 
+                        ha='center', fontsize=9, alpha=0.7
+                    )
+
+    plt.yscale("log")
+    plt.xlabel("Recall (Czułość względem dokładnego k-NN)", fontsize=12)
+    plt.ylabel("QPS – Queries Per Second (Wyżej = szybciej)", fontsize=12)
+    plt.title(title, fontsize=14)
+    plt.grid(True, which="both", ls="--", alpha=0.5)
+    plt.legend(fontsize=11)
+    
+    plt.xlim(0.4, 1.05)
+    plt.tight_layout()
+
+    if output_path:
+        plt.savefig(output_path)
+        print(f"Zapisano wykres do: {output_path}")
+    else:
+        plt.show()
+        
+    plt.close()
+
+
+def plot_crossover(sizes: list, cpu_times: list, gpu_times: list, title: str = "Crossover N: CPU vs GPU", output_path: str = None):
+    """Plots query time vs dataset size to identify the CPU/GPU performance crossover point.
+
+    Converts input times from seconds to milliseconds for better readability.
+
+    Args:
+        sizes (list): List of dataset sizes (N).
+        cpu_times (list): List of CPU query times in seconds.
+        gpu_times (list): List of GPU query times in seconds.
+        title (str): Title of the plot.
+        output_path (str, optional): If provided, saves the plot to this path.
+    """
+    plt.figure(figsize=(10, 6))
+    
+    cpu_ms = [t * 1000 for t in cpu_times]
+    gpu_ms = [t * 1000 for t in gpu_times]
+
+    plt.plot(sizes, cpu_ms, marker='o', linewidth=2, color='blue', label='CPU')
+    plt.plot(sizes, gpu_ms, marker='s', linewidth=2, color='red', label='GPU')
+
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel("Rozmiar datasetu N (Liczba hitów)", fontsize=12)
+    plt.ylabel("Czas zapytania (ms)", fontsize=12)
+    plt.title(title, fontsize=14)
+    plt.grid(True, which="both", ls="--", alpha=0.5)
+    plt.legend(fontsize=12)
+
+    plt.tight_layout()
+
+    if output_path:
+        plt.savefig(output_path)
+        print(f"Zapisano wykres do: {output_path}")
+    else:
+        plt.show()
+        
+    plt.close()
+
+def plot_ann_scaling(sizes: list, results_time: dict, title: str = "Wymiar 5D: Exact kNN vs ANN", output_path: str = None):
+    """Plots the comparison between Exact kNN and ANN approaches.
+
+    Args:
+        sizes (list): List of dataset sizes (N).
+        results_time (dict): Dictionary mapping model names to execution times.
+        title (str): Title of the plot.
+        output_path (str, optional): If provided, saves the plot to this path.
+    """
+    plt.figure(figsize=(10, 6))
+    
+    # Metody Dokładne (100% Recall)
+    plt.plot(sizes, results_time["Exact_CPU"], marker='o', color='black', linestyle='-', linewidth=2, label='FAISS Brute (CPU) - 100%')
+    plt.plot(sizes, results_time["Exact_GPU"], marker='v', color='purple', linestyle='-', linewidth=2, label='FAISS Brute (GPU) - 100%')
+    plt.plot(sizes, results_time["cKDTree_CPU"], marker='d', color='teal', linestyle='-', linewidth=2, label='Scipy cKDTree (CPU) - 100%')
+    
+    # Metody Przybliżone (~95% Recall)
+    plt.plot(sizes, results_time["IVFFlat_GPU"], marker='s', color='red', linestyle='--', linewidth=2, label='IVFFlat (GPU) - ~95%')
+    plt.plot(sizes, results_time["HNSW_CPU"], marker='^', color='orange', linestyle='--', linewidth=2, label='HNSW (CPU) - ~95%')
+
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel("Rozmiar zbioru danych N (Liczba hitów)", fontsize=12)
+    plt.ylabel("Czas zapytania (sekundy)", fontsize=12)
+    plt.title(title, fontsize=14)
+    plt.grid(True, which="both", ls="--", alpha=0.5)
+    plt.legend(fontsize=11)
+    
+    plt.tight_layout()
+
+    if output_path:
+        plt.savefig(output_path)
+        print(f"Zapisano wykres do: {output_path}")
+    else:
+        plt.show()
+        
+    plt.close()
