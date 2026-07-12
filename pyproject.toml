@@ -14,8 +14,9 @@ dependencies = [
     "scikit-learn",
     "matplotlib",
     "tqdm",
+    "cupy",
     "hnswlib",
-    "pynndescent",
+    "faiss-gpu",
     "ipykernel"
 ]
 

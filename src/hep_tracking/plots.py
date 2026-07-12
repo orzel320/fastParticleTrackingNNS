@@ -148,7 +148,7 @@ def plot_pareto_frontier(results: dict, title: str = "Wydajność algorytmów AN
 
     plt.yscale("log")
     plt.xlabel("Recall (Czułość względem dokładnego k-NN)", fontsize=12)
-    plt.ylabel("QPS – Queries Per Second (Wyżej = szybciej)", fontsize=12)
+    plt.ylabel("QPS - Queries Per Second (Wyżej = szybciej)", fontsize=12)
     plt.title(title, fontsize=14)
     plt.grid(True, which="both", ls="--", alpha=0.5)
     plt.legend(fontsize=11)
@@ -204,7 +204,14 @@ def plot_crossover(sizes: list, cpu_times: list, gpu_times: list, title: str = "
     plt.close()
 
 def plot_ann_scaling(sizes: list, results_time: dict, title: str = "Wydajność algorytmów ANN: Czas vs N", output_path: str = None):
-    """Plots the query time vs dataset size for multiple ANN algorithms (Constant Recall Experiment)."""
+    """Plots the query time vs dataset size for multiple ANN algorithms.
+
+    Args:
+        sizes (list): List of dataset sizes (N).
+        results_time (dict): Dictionary mapping model names to lists of execution times.
+        title (str): Title of the plot.
+        output_path (str, optional): If provided, saves the plot to this path.
+    """
     plt.figure(figsize=(10, 6))
     
     colors = {"IVFFlat": "blue", "IVFPQ": "green", "HNSW": "red"}
@@ -232,14 +239,21 @@ def plot_ann_scaling(sizes: list, results_time: dict, title: str = "Wydajność 
 
 
 def plot_exact_vs_ann(sizes: list, results_time: dict, title: str = "Wymiar 5D: Exact kNN vs ANN", output_path: str = None):
-    """Plots the comparison between Exact kNN and ANN approaches (Deliverable 4)."""
+    """Plots the comparison between Exact kNN and ANN approaches.
+
+    Args:
+        sizes (list): List of dataset sizes (N).
+        results_time (dict): Dictionary mapping model names to execution times.
+        title (str): Title of the plot.
+        output_path (str, optional): If provided, saves the plot to this path.
+    """
     plt.figure(figsize=(10, 6))
     
-    plt.plot(sizes, results_time["Exact_CPU"], marker='o', color='black', linestyle='-', linewidth=2, label='FAISS Brute (CPU) - 100%')
-    plt.plot(sizes, results_time["Exact_GPU"], marker='v', color='purple', linestyle='-', linewidth=2, label='FAISS Brute (GPU) - 100%')
-    plt.plot(sizes, results_time["cKDTree_CPU"], marker='d', color='teal', linestyle='-', linewidth=2, label='Scipy cKDTree (CPU) - 100%')
-    plt.plot(sizes, results_time["IVFFlat_GPU"], marker='s', color='red', linestyle='--', linewidth=2, label='IVFFlat (GPU) - ~95%')
-    plt.plot(sizes, results_time["HNSW_CPU"], marker='^', color='orange', linestyle='--', linewidth=2, label='HNSW (CPU) - ~95%')
+    plt.plot(sizes, results_time["Exact_CPU"], marker='o', color='black', linestyle='-', linewidth=2, label='FAISS Brute (CPU) - exact')
+    plt.plot(sizes, results_time["Exact_GPU"], marker='v', color='purple', linestyle='-', linewidth=2, label='FAISS Brute (GPU) - exact')
+    plt.plot(sizes, results_time["cKDTree_CPU"], marker='d', color='teal', linestyle='-', linewidth=2, label='Scipy cKDTree (CPU) - exact')
+    plt.plot(sizes, results_time["IVFFlat_GPU"], marker='s', color='red', linestyle='--', linewidth=2, label='IVFFlat (GPU) - approx')
+    plt.plot(sizes, results_time["HNSW_CPU"], marker='^', color='orange', linestyle='--', linewidth=2, label='HNSW (CPU) - approx')
 
     plt.xscale('log')
     plt.yscale('log')
@@ -254,36 +268,4 @@ def plot_exact_vs_ann(sizes: list, results_time: dict, title: str = "Wymiar 5D: 
         plt.savefig(output_path)
     else:
         plt.show()
-    plt.close()
-
-def plot_tree_comparison(sizes: list, results_time: dict, title: str = "cKDTree vs Lasy Losowe (PyNNDescent)", output_path: str = None):
-    """Plots the performance comparison between exact cKDTree and approx PyNNDescent.
-
-    Args:
-        sizes (list): List of dataset sizes (N).
-        results_time (dict): Dictionary mapping model names to execution times.
-        title (str): Title of the plot.
-        output_path (str, optional): If provided, saves the plot to this path.
-    """
-    plt.figure(figsize=(10, 6))
-    
-    plt.plot(sizes, results_time["cKDTree_CPU"], marker='d', color='teal', linestyle='-', linewidth=2, label='Scipy cKDTree (Exact - 100%)')
-    plt.plot(sizes, results_time["PyNNDescent_CPU"], marker='*', color='coral', linestyle='--', linewidth=2, label='PyNNDescent (Approx - ~95%)')
-
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel("Rozmiar zbioru danych N (Liczba hitów)", fontsize=12)
-    plt.ylabel("Czas zapytania (sekundy)", fontsize=12)
-    plt.title(title, fontsize=14)
-    plt.grid(True, which="both", ls="--", alpha=0.5)
-    plt.legend(fontsize=12)
-    
-    plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path)
-        print(f"Zapisano wykres do: {output_path}")
-    else:
-        plt.show()
-        
     plt.close()
