@@ -218,11 +218,9 @@ def plot_ann_scaling(sizes: list, results_time: dict, use_gpu: bool, title: str 
     """
     plt.figure(figsize=(10, 6))
 
-    # Metody Exact (100% Recall)
     plt.plot(sizes, results_time.get("Exact_CPU", []), marker='o', color='black', linestyle='-', linewidth=2, label='Exact kNN (CPU)')
     plt.plot(sizes, results_time.get("Exact_GPU", []), marker='v', color='purple', linestyle='-', linewidth=2, label='Exact kNN (GPU)')
 
-    # Metody ANN (~95% Recall)
     ivf_env = "GPU" if use_gpu else "CPU"
     plt.plot(sizes, results_time.get("IVFFlat", []), marker='s', color='blue', linestyle='--', linewidth=2, label=f'IVFFlat ({ivf_env})')
     plt.plot(sizes, results_time.get("IVFPQ", []), marker='D', color='green', linestyle='--', linewidth=2, label=f'IVFPQ ({ivf_env})')
