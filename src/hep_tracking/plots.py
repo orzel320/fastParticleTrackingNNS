@@ -203,38 +203,47 @@ def plot_crossover(sizes: list, cpu_times: list, gpu_times: list, title: str = "
         
     plt.close()
 
-def plot_ann_scaling(sizes: list, results_time: dict, title: str = "Wydajność algorytmów ANN: Czas vs N", output_path: str = None):
-    """Plots the query time vs dataset size for multiple ANN algorithms.
+def plot_ann_scaling(sizes: list, results_time: dict, use_gpu: bool, title: str = "Przestrzeń 8D: Exact vs ANN", output_path: str = None):
+    """Plots the final execution time comparison between exact kNN and ANN models.
+
+    Dynamically updates the legend labels for FAISS ANN algorithms based on the 
+    `use_gpu` flag to accurately reflect the hardware environment.
 
     Args:
         sizes (list): List of dataset sizes (N).
         results_time (dict): Dictionary mapping model names to lists of execution times.
-        title (str): Title of the plot.
+        use_gpu (bool): Indicates if FAISS ANN models (IVFFlat/IVFPQ) utilized the GPU.
+        title (str, optional): Title of the plot.
         output_path (str, optional): If provided, saves the plot to this path.
     """
     plt.figure(figsize=(10, 6))
-    
-    colors = {"IVFFlat": "blue", "IVFPQ": "green", "HNSW": "red"}
-    markers = {"IVFFlat": "o", "IVFPQ": "s", "HNSW": "^"}
 
-    for name, times in results_time.items():
-        c = colors.get(name, "black")
-        m = markers.get(name, "x")
-        plt.plot(sizes, times, marker=m, color=c, linewidth=2, label=name)
+    # Metody Exact (100% Recall)
+    plt.plot(sizes, results_time.get("Exact_CPU", []), marker='o', color='black', linestyle='-', linewidth=2, label='Exact kNN (CPU)')
+    plt.plot(sizes, results_time.get("Exact_GPU", []), marker='v', color='purple', linestyle='-', linewidth=2, label='Exact kNN (GPU)')
+
+    # Metody ANN (~95% Recall)
+    ivf_env = "GPU" if use_gpu else "CPU"
+    plt.plot(sizes, results_time.get("IVFFlat", []), marker='s', color='blue', linestyle='--', linewidth=2, label=f'IVFFlat ({ivf_env})')
+    plt.plot(sizes, results_time.get("IVFPQ", []), marker='D', color='green', linestyle='--', linewidth=2, label=f'IVFPQ ({ivf_env})')
+    plt.plot(sizes, results_time.get("HNSW", []), marker='^', color='red', linestyle='--', linewidth=2, label='HNSW (CPU)')
 
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel("Rozmiar zbioru danych N (Liczba hitów)", fontsize=12)
     plt.ylabel("Czas zapytania (sekundy)", fontsize=12)
+
     plt.title(title, fontsize=14)
     plt.grid(True, which="both", ls="--", alpha=0.5)
-    plt.legend(fontsize=12)
+    plt.legend(fontsize=11)
     
     plt.tight_layout()
+
     if output_path:
         plt.savefig(output_path)
     else:
         plt.show()
+        
     plt.close()
 
 
