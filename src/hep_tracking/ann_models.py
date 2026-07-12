@@ -1,3 +1,4 @@
+import pynndescent
 import numpy as np
 import faiss
 import hnswlib
@@ -232,4 +233,63 @@ class HnswGraph:
 
         indices, distances = self.index.knn_query(features_contig, k=k + 1)
 
+        return distances[:, 1:].astype(np.float32), indices[:, 1:]
+
+class PyNNDescentGraph:
+    """Approximate Nearest Neighbors using PyNNDescent.
+
+    Utilizes Random Projection Forests and Nearest Neighbor Descent to build
+    a highly efficient kNN graph on the CPU. Multi-threaded via Numba.
+
+    Attributes:
+        n_neighbors (int): Number of neighbors to use for the internal graph.
+        metric (str): Distance metric to use.
+        n_jobs (int): Number of parallel threads (-1 uses all available cores).
+        index (pynndescent.NNDescent): The underlying index object.
+    """
+
+    def __init__(self, n_neighbors: int = 15, metric: str = 'euclidean', n_jobs: int = -1):
+        """Initializes the PyNNDescent wrapper.
+
+        Args:
+            n_neighbors: Internal neighbors parameter for graph construction.
+            metric: Distance metric (e.g., 'euclidean').
+            n_jobs: Number of threads. Defaults to -1 (all cores).
+        """
+        self.n_neighbors = n_neighbors
+        self.metric = metric
+        self.n_jobs = n_jobs
+        self.index = None
+
+    def build(self, features: np.ndarray) -> None:
+        """Trains the index and prepares it for querying.
+
+        Args:
+            features: Feature matrix of shape (N, D).
+        """
+        features_contig = np.ascontiguousarray(features, dtype=np.float32)
+        
+        # Inicjalizacja i budowa indeksu
+        self.index = pynndescent.NNDescent(
+            features_contig,
+            n_neighbors=self.n_neighbors,
+            metric=self.metric,
+            n_jobs=self.n_jobs
+        )
+        # Metoda prepare() optymalizuje wewnętrzne struktury pod kątem zapytań
+        self.index.prepare()
+
+    def query(self, features: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        """Queries the k nearest neighbors for the given features.
+
+        Args:
+            features: Feature matrix of shape (N, D) to query.
+            k: Number of nearest neighbors to find (excluding the point itself).
+
+        Returns:
+            A tuple of (distances, indices) arrays.
+        """
+        features_contig = np.ascontiguousarray(features, dtype=np.float32)
+        indices, distances = self.index.query(features_contig, k=k + 1)
+        
         return distances[:, 1:].astype(np.float32), indices[:, 1:]
