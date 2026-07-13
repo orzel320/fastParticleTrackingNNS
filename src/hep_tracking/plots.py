@@ -218,8 +218,8 @@ def plot_ann_scaling(sizes: list, results_time: dict, use_gpu: bool, title: str 
     """
     plt.figure(figsize=(10, 6))
 
-    plt.plot(sizes, results_time.get("Exact_CPU", []), marker='o', color='black', linestyle='-', linewidth=2, label='Exact kNN (CPU)')
-    plt.plot(sizes, results_time.get("Exact_GPU", []), marker='v', color='purple', linestyle='-', linewidth=2, label='Exact kNN (GPU)')
+    # plt.plot(sizes, results_time.get("Exact_CPU", []), marker='o', color='black', linestyle='-', linewidth=2, label='Exact kNN (CPU)')
+    # plt.plot(sizes, results_time.get("Exact_GPU", []), marker='v', color='purple', linestyle='-', linewidth=2, label='Exact kNN (GPU)')
 
     ivf_env = "GPU" if use_gpu else "CPU"
     plt.plot(sizes, results_time.get("IVFFlat", []), marker='s', color='blue', linestyle='--', linewidth=2, label=f'IVFFlat ({ivf_env})')
@@ -256,8 +256,8 @@ def plot_exact_vs_ann(sizes: list, results_time: dict, title: str = "Wymiar 5D: 
     """
     plt.figure(figsize=(10, 6))
     
-    plt.plot(sizes, results_time["Exact_CPU"], marker='o', color='black', linestyle='-', linewidth=2, label='FAISS Brute (CPU) - exact')
-    plt.plot(sizes, results_time["Exact_GPU"], marker='v', color='purple', linestyle='-', linewidth=2, label='FAISS Brute (GPU) - exact')
+    # plt.plot(sizes, results_time["Exact_CPU"], marker='o', color='black', linestyle='-', linewidth=2, label='FAISS Brute (CPU) - exact')
+    # plt.plot(sizes, results_time["Exact_GPU"], marker='v', color='purple', linestyle='-', linewidth=2, label='FAISS Brute (GPU) - exact')
     plt.plot(sizes, results_time["cKDTree_CPU"], marker='d', color='teal', linestyle='-', linewidth=2, label='Scipy cKDTree (CPU) - exact')
     plt.plot(sizes, results_time["IVFFlat_GPU"], marker='s', color='red', linestyle='--', linewidth=2, label='IVFFlat (GPU) - approx')
     plt.plot(sizes, results_time["HNSW_CPU"], marker='^', color='orange', linestyle='--', linewidth=2, label='HNSW (CPU) - approx')
