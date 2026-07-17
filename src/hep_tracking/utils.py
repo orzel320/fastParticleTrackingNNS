@@ -46,3 +46,58 @@ def calculate_recall(true_indices: np.ndarray, pred_indices: np.ndarray) -> floa
     hits = (true_indices[:, :, None] == pred_indices[:, None, :]).any(axis=2).sum()
 
     return float(hits) / (n_samples * k_neighbors)
+
+def pad_features(features: np.ndarray, target_dim: int = 8) -> np.ndarray:
+    """Pads the feature matrix with zeros to reach a target dimensionality.
+
+    Useful for meeting hardware-specific memory alignment constraints 
+    (e.g., FAISS GPU Product Quantization needing m=8). Also ensures the 
+    returned array is C-contiguous and of type float32.
+
+    Args:
+        features (np.ndarray): Original feature matrix of shape (N, D).
+        target_dim (int): The desired number of dimensions. Defaults to 8.
+
+    Returns:
+        np.ndarray: A padded, contiguous float32 matrix of shape (N, target_dim).
+    """
+    current_dim = features.shape[1]
+    
+    if current_dim >= target_dim:
+        return np.ascontiguousarray(features, dtype=np.float32)
+        
+    pad_width = target_dim - current_dim
+    padded_features = np.pad(features, ((0, 0), (0, pad_width)), mode='constant')
+    
+    return np.ascontiguousarray(padded_features, dtype=np.float32)
+
+
+def evaluate_ann_model(model_name: str, model_instance, features: np.ndarray, true_indices: np.ndarray, k: int):
+    """Builds the ANN index, queries it, and returns performance metrics.
+
+    Prints the progress and timing to the console. The query time is measured 
+    strictly for the query phase, excluding index construction time.
+
+    Args:
+        model_name (str): Display name of the model for logging.
+        model_instance (object): The initialized ANN wrapper instance.
+        features (np.ndarray): Feature matrix to build the index and query on.
+        true_indices (np.ndarray): Ground truth exact nearest neighbor indices.
+        k (int): Number of nearest neighbors to retrieve.
+
+    Returns:
+        tuple[float, float]: A tuple containing (QPS, Recall).
+    """
+    print(f"Trenowanie i budowa indeksu: {model_name}...")
+    
+    model_instance.build(features)
+    
+    start_time = time.perf_counter()
+    _, pred_indices = model_instance.query(features, k)
+    query_time = time.perf_counter() - start_time
+    
+    qps = features.shape[0] / query_time
+    recall = calculate_recall(true_indices, pred_indices)
+    
+    print(f" -> QPS: {qps:,.0f} | Recall: {recall:.4f}\n")
+    return qps, recall

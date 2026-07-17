@@ -16,7 +16,8 @@ dependencies = [
     "tqdm",
     "cupy",
     "hnswlib",
-    "faiss-gpu"
+    "faiss-gpu",
+    "ipykernel"
 ]
 
 [project.optional-dependencies]
