@@ -1,5 +1,15 @@
 import time
 
+import numpy as np
+
+from sklearn.metrics import (
+    roc_auc_score,
+    average_precision_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    accuracy_score,
+)
 
 def measure_execution_time(target_function, num_runs=3, warmup_runs=1):
     """Measures the minimum execution time of a function over multiple runs.
@@ -26,10 +36,6 @@ def measure_execution_time(target_function, num_runs=3, warmup_runs=1):
         execution_times.append(time.perf_counter() - start_time)
 
     return min(execution_times)
-
-
-import numpy as np
-
 
 def calculate_recall(true_indices: np.ndarray, pred_indices: np.ndarray) -> float:
     """Calculates the recall of an Approximate Nearest Neighbors (ANN) search.
@@ -101,3 +107,28 @@ def evaluate_ann_model(model_name: str, model_instance, features: np.ndarray, tr
     
     print(f" -> QPS: {qps:,.0f} | Recall: {recall:.4f}\n")
     return qps, recall
+
+def calculate_classification_metrics(y_true, y_pred_proba, threshold=0.5):
+    """Calculates standard classification metrics for model evaluation.
+
+    :param y_true: Ground truth binary labels.
+    :type y_true: numpy.ndarray
+    :param y_pred_proba: Predicted probabilities for the positive class.
+    :type y_pred_proba: numpy.ndarray
+    :param threshold: Probability threshold for converting probabilities to binary predictions.
+    :type threshold: float
+    :return: Dictionary containing ROC-AUC, PR-AUC, F1, Precision, Recall, and Accuracy.
+    :rtype: dict
+    """
+    y_pred = (y_pred_proba >= threshold).astype(int)
+
+    metrics = {
+        "ROC-AUC": roc_auc_score(y_true, y_pred_proba),
+        "PR-AUC": average_precision_score(y_true, y_pred_proba),
+        "F1-Score": f1_score(y_true, y_pred),
+        "Precision": precision_score(y_true, y_pred, zero_division=0),
+        "Recall": recall_score(y_true, y_pred, zero_division=0),
+        "Accuracy": accuracy_score(y_true, y_pred),
+    }
+
+    return metrics

@@ -110,7 +110,7 @@ def generate_datasets(output_dir="data"):
     output_path.mkdir(parents=True, exist_ok=True)
 
     target_sizes = {"1k": 1_000, "10k": 10_000, "100k": 100_000, "1M": 1_000_000}
-    max_hits_per_event = 100_000
+    max_hits_per_event = 10_000
 
     generation_modes = {
         "easy": {
@@ -133,7 +133,6 @@ def generate_datasets(output_dir="data"):
         print(f"--- Generating mode: {mode_name.upper()} ---")
         for size_label, total_hits in target_sizes.items():
 
-            # Ustalanie liczby zdarzeń (np. 1M / 100k = 10 zdarzeń)
             n_events = max(1, total_hits // max_hits_per_event)
             hits_per_event = total_hits // n_events
 

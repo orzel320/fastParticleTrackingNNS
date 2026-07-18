@@ -23,11 +23,26 @@ def generate_and_save_candidates(data_dir="data", k_neighbors=5):
         print(f"Processing {dataset_name} to generate candidates...")
         data = np.load(file_path)
         features = data["X"]
-
-        distances, indices = knn_scipy_ckdtree(features, k=k_neighbors)
+        event_ids = data["event_id"]
+        
+        all_indices = np.zeros((features.shape[0], k_neighbors), dtype=np.int64)
+        all_distances = np.zeros((features.shape[0], k_neighbors), dtype=np.float32)
+        
+        unique_events = np.unique(event_ids)
+        for ev_id in unique_events:
+            mask = (event_ids == ev_id)
+            ev_features = features[mask]
+            
+            distances, indices = knn_scipy_ckdtree(ev_features, k=k_neighbors)
+            
+            global_idx = np.where(mask)[0]
+            global_neighbors = global_idx[indices]
+            
+            all_indices[mask] = global_neighbors
+            all_distances[mask] = distances
 
         output_name = dataset_path / f"candidates_{dataset_name.split('_', 1)[1]}"
-        np.savez_compressed(output_name, indices=indices, distances=distances)
+        np.savez_compressed(output_name, indices=all_indices, distances=all_distances)
 
         print(f"  Saved candidates to: {output_name.name}")
 

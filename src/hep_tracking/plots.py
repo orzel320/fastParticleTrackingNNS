@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist, squareform
-
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
 
 def plot_3d_hits(features, labels, output_path=None):
     """Visualizes synthetic detector hits in a 3D scatter plot.
@@ -276,3 +276,84 @@ def plot_exact_vs_ann(sizes: list, results_time: dict, title: str = "Wymiar 5D: 
     else:
         plt.show()
     plt.close()
+
+def plot_roc_curves(models_dict, X_test, y_test, output_path=None):
+    """Plots Receiver Operating Characteristic (ROC) curves for multiple models.
+
+    :param models_dict: Dictionary mapping model names to trained classifier objects.
+    :type models_dict: dict
+    :param X_test: Test feature matrix.
+    :type X_test: numpy.ndarray
+    :param y_test: True binary labels for the test set.
+    :type y_test: numpy.ndarray
+    :param output_path: Path to save the generated plot. If None, the plot is displayed interactively.
+    :type output_path: str or pathlib.Path, optional
+    """
+    figure, axes = plt.subplots(figsize=(8, 6))
+
+    for model_name, model in models_dict.items():
+        y_pred_proba = model.predict_proba(X_test)[:, 1]
+        fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
+        roc_auc = auc(fpr, tpr)
+        
+        axes.plot(fpr, tpr, lw=2, label=f"{model_name} (AUC = {roc_auc:.4f})")
+
+    axes.plot([0, 1], [0, 1], color="black", lw=1, linestyle="--")
+    axes.set_xlim([0.0, 1.0])
+    axes.set_ylim([0.0, 1.05])
+    axes.set_xlabel("False Positive Rate")
+    axes.set_ylabel("True Positive Rate")
+    axes.set_title("ROC Curves Comparison")
+    axes.legend(loc="lower right")
+    axes.grid(True, linestyle="--", alpha=0.6)
+
+    plt.tight_layout()
+
+    if output_path:
+        plt.savefig(output_path)
+    else:
+        plt.show()
+
+    plt.close(figure)
+
+
+def plot_pr_curves(models_dict, X_test, y_test, output_path=None):
+    """Plots Precision-Recall (PR) curves for multiple models.
+
+    :param models_dict: Dictionary mapping model names to trained classifier objects.
+    :type models_dict: dict
+    :param X_test: Test feature matrix.
+    :type X_test: numpy.ndarray
+    :param y_test: True binary labels for the test set.
+    :type y_test: numpy.ndarray
+    :param output_path: Path to save the generated plot. If None, the plot is displayed interactively.
+    :type output_path: str or pathlib.Path, optional
+    """
+    figure, axes = plt.subplots(figsize=(8, 6))
+
+    for model_name, model in models_dict.items():
+        y_pred_proba = model.predict_proba(X_test)[:, 1]
+        precision, recall, _ = precision_recall_curve(y_test, y_pred_proba)
+        pr_auc = average_precision_score(y_test, y_pred_proba)
+        
+        axes.plot(recall, precision, lw=2, label=f"{model_name} (PR AUC = {pr_auc:.4f})")
+
+    baseline = np.sum(y_test) / len(y_test)
+    axes.axhline(baseline, color="black", lw=1, linestyle="--", label=f"Baseline ({baseline:.2f})")
+    
+    axes.set_xlim([0.0, 1.0])
+    axes.set_ylim([0.0, 1.05])
+    axes.set_xlabel("Recall")
+    axes.set_ylabel("Precision")
+    axes.set_title("Precision-Recall Curves Comparison")
+    axes.legend(loc="lower left")
+    axes.grid(True, linestyle="--", alpha=0.6)
+
+    plt.tight_layout()
+
+    if output_path:
+        plt.savefig(output_path)
+    else:
+        plt.show()
+
+    plt.close(figure)
