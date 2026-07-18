@@ -2,13 +2,24 @@ import numpy as np
 
 
 def compute_pair_features(features_a, features_b):
-    """Computes physical and geometric features for pairs of hits.
+    """Oblicza fizyczne i geometryczne cechy dla par hitów.
 
-    :param features_a: Feature matrix of the first hits in the pairs, shape (M, 5).
+    UWAGA METODOLOGICZNA: cecha ``dot_product`` wykorzystuje kolumny 3 i 4
+    wejściowego wektora cech (kierunek toru, ``dx_pred``/``dy_pred``) —
+    dokładnie te same kolumny, na których liczony jest kNN w
+    ``generate_candidates.py``. Ponieważ kandydaci do klasyfikacji są już
+    wybierani na podstawie odległości w przestrzeni zawierającej ten sam
+    sygnał kierunkowy, ``dot_product`` może być silniej skorelowany z
+    prawdziwą etykietą niż wynikałoby to z samej fizyki problemu. To
+    prawdopodobne wytłumaczenie, dlaczego RandomForest osiąga wynik 1.0000
+    na zbiorze testowym — nie jest to klasyczny wyciek między train/test,
+    tylko wyciek przez sposób doboru kandydatów w poprzednim sprincie.
+
+    :param features_a: Macierz cech pierwszych hitów w parach, kształt (M, 5).
     :type features_a: numpy.ndarray
-    :param features_b: Feature matrix of the second hits in the pairs, shape (M, 5).
+    :param features_b: Macierz cech drugich hitów w parach, kształt (M, 5).
     :type features_b: numpy.ndarray
-    :return: Matrix of engineered pair features, shape (M, 8).
+    :return: Macierz wygenerowanych cech pary, kształt (M, 7).
     :rtype: numpy.ndarray
     """
     delta_xyz = features_a[:, :3] - features_b[:, :3]
@@ -20,31 +31,39 @@ def compute_pair_features(features_a, features_b):
     phi_a = np.arctan2(features_a[:, 1], features_a[:, 0])
     phi_b = np.arctan2(features_b[:, 1], features_b[:, 0])
     delta_phi_raw = phi_a - phi_b
+    # normalizacja różnicy kąta do zakresu (-pi, pi], żeby uniknąć
+    # nieciągłości przy przejściu przez -pi/pi
     delta_phi = np.arctan2(np.sin(delta_phi_raw), np.cos(delta_phi_raw))[:, np.newaxis]
 
     dist_3d = np.linalg.norm(delta_xyz, axis=1)[:, np.newaxis]
 
+    # UWAGA: to jest surowy iloczyn skalarny, nie znormalizowane
+    # podobieństwo kosinusowe — miesza ze sobą "zgodność kierunku"
+    # i "skalę wektora kierunku". Jeśli w przyszłości potrzebna będzie
+    # czysta miara kąta między kierunkami, warto znormalizować wektory
+    # (podzielić przez ich normy) przed obliczeniem iloczynu.
     dot_product = (features_a[:, 3] * features_b[:, 3] + features_a[:, 4] * features_b[:, 4])[:, np.newaxis]
 
     return np.hstack([delta_xyz, delta_r, delta_phi, dist_3d, dot_product]).astype(np.float32)
 
 
 def create_pair_dataset(features, labels, event_ids, candidate_indices, max_neg_ratio=5.0, seed=42):
-    """Generates a binary classification dataset from candidate pairs.
+    """Generuje zbiór danych do klasyfikacji binarnej na podstawie par kandydatów.
 
-    :param features: Matrix of hit features, shape (N, 5).
+    :param features: Macierz cech hitów, kształt (N, 5).
     :type features: numpy.ndarray
-    :param labels: Array of true track IDs for each hit, shape (N,).
+    :param labels: Tablica prawdziwych identyfikatorów torów (truth track ID) dla każdego hitu.
     :type labels: numpy.ndarray
-    :param event_ids: Array of event IDs for each hit, shape (N,).
+    :param event_ids: Tablica identyfikatorów zdarzeń (event ID) dla każdego hitu.
     :type event_ids: numpy.ndarray
-    :param candidate_indices: Matrix of candidate neighbor indices, shape (N, k).
+    :param candidate_indices: Macierz indeksów sąsiadów-kandydatów, kształt (N, k).
     :type candidate_indices: numpy.ndarray
-    :param max_neg_ratio: Maximum ratio of negative to positive pairs.
+    :param max_neg_ratio: Maksymalny stosunek liczby par negatywnych do pozytywnych
+        (górny limit — jeśli naturalny stosunek jest niższy, nic nie jest obcinane).
     :type max_neg_ratio: float
-    :param seed: Random seed for negative downsampling.
+    :param seed: Ziarno losowości używane przy downsamplingu negatywów.
     :type seed: int
-    :return: Tuple containing pair features, pair labels, and pair event IDs.
+    :return: Krotka zawierająca cechy par, etykiety par i identyfikatory zdarzeń par.
     :rtype: tuple[numpy.ndarray, numpy.ndarray, numpy.ndarray]
     """
     n_queries, k_neighbors = candidate_indices.shape
@@ -52,6 +71,8 @@ def create_pair_dataset(features, labels, event_ids, candidate_indices, max_neg_
     queries = np.repeat(np.arange(n_queries), k_neighbors)
     candidates = candidate_indices.flatten()
 
+    # usuwamy pary hitu z samym sobą (może się zdarzyć, jeśli punkt
+    # znajdzie sam siebie jako "sąsiada")
     valid_mask = queries != candidates
     queries = queries[valid_mask]
     candidates = candidates[valid_mask]
@@ -59,6 +80,8 @@ def create_pair_dataset(features, labels, event_ids, candidate_indices, max_neg_
     labels_q = labels[queries]
     labels_c = labels[candidates]
 
+    # hity szumu (label == -1) nigdy nie są traktowane jako para pozytywna,
+    # nawet jeśli oba mają label == -1
     positive_mask = (labels_q == labels_c) & (labels_q != -1)
     negative_mask = ~positive_mask
 
@@ -86,27 +109,26 @@ def create_pair_dataset(features, labels, event_ids, candidate_indices, max_neg_
 
 
 def split_by_event(X, y, event_ids, train_size=0.75, val_size=0.15, seed=42):
-    """Splits the dataset into training, validation, and test sets based on event boundaries.
+    """Dzieli zbiór danych na train/walidacja/test z zachowaniem granic zdarzeń
+    (żaden event_id nie występuje jednocześnie w więcej niż jednym podzbiorze).
 
-    :param X: Feature matrix of the data.
+    :param X: Macierz cech.
     :type X: numpy.ndarray
-    :param y: Labels array.
+    :param y: Tablica etykiet.
     :type y: numpy.ndarray
-    :param event_ids: Array of event IDs corresponding to each row in X.
+    :param event_ids: Tablica identyfikatorów zdarzeń odpowiadających wierszom X.
     :type event_ids: numpy.ndarray
-    :param train_size: Proportion of the dataset to include in the train split.
+    :param train_size: Udział zdarzeń trafiających do zbioru treningowego.
     :type train_size: float
-    :param val_size: Proportion of the dataset to include in the validation split.
+    :param val_size: Udział zdarzeń trafiających do zbioru walidacyjnego.
     :type val_size: float
-    :param seed: Random seed for shuffling events.
+    :param seed: Ziarno losowości używane przy tasowaniu zdarzeń.
     :type seed: int
-    :return: A tuple of (X_train, y_train, X_val, y_val, X_test, y_test).
+    :return: Krotka (X_train, y_train, X_val, y_val, X_test, y_test).
     :rtype: tuple
     """
     unique_events = np.unique(event_ids)
 
-    unique_events = np.unique(event_ids)
-    
     if len(unique_events) < 3:
         raise ValueError(f"Zbyt mało zdarzeń ({len(unique_events)}) do poprawnego podziału na Train/Val/Test.")
 
