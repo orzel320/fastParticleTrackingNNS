@@ -108,7 +108,7 @@ def create_pair_dataset(features, labels, event_ids, candidate_indices, max_neg_
     return pair_features, pair_labels, pair_event_ids
 
 
-def split_by_event(X, y, event_ids, train_size=0.75, val_size=0.15, seed=42):
+def split_by_event(X, y, event_ids, train_size=0.75, val_size=0.15, seed=42, return_event_ids=False):
     """Dzieli zbiór danych na train/walidacja/test z zachowaniem granic zdarzeń
     (żaden event_id nie występuje jednocześnie w więcej niż jednym podzbiorze).
 
@@ -124,7 +124,13 @@ def split_by_event(X, y, event_ids, train_size=0.75, val_size=0.15, seed=42):
     :type val_size: float
     :param seed: Ziarno losowości używane przy tasowaniu zdarzeń.
     :type seed: int
-    :return: Krotka (X_train, y_train, X_val, y_val, X_test, y_test).
+    :param return_event_ids: Jeśli True, funkcja dodatkowo zwraca event_id
+        odpowiadające każdemu z trzech podzbiorów — używane głównie do testów
+        jednostkowych, które muszą jawnie zweryfikować brak przecieku zdarzeń
+        między train/val/test bez zgadywania na podstawie wartości X.
+    :type return_event_ids: bool
+    :return: Krotka (X_train, y_train, X_val, y_val, X_test, y_test), a jeśli
+        ``return_event_ids=True`` — dodatkowo (event_ids_train, event_ids_val, event_ids_test).
     :rtype: tuple
     """
     unique_events = np.unique(event_ids)
@@ -147,4 +153,9 @@ def split_by_event(X, y, event_ids, train_size=0.75, val_size=0.15, seed=42):
     val_mask = np.isin(event_ids, val_events)
     test_mask = np.isin(event_ids, test_events)
 
-    return X[train_mask], y[train_mask], X[val_mask], y[val_mask], X[test_mask], y[test_mask]
+    result = (X[train_mask], y[train_mask], X[val_mask], y[val_mask], X[test_mask], y[test_mask])
+
+    if return_event_ids:
+        result = result + (event_ids[train_mask], event_ids[val_mask], event_ids[test_mask])
+
+    return result
