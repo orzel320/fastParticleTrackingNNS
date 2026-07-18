@@ -17,7 +17,10 @@ dependencies = [
     "cupy",
     "hnswlib",
     "faiss-gpu",
-    "ipykernel"
+    "ipykernel",
+    "xgboost",
+    "lightgbm",
+    "pandas"
 ]
 
 [project.optional-dependencies]
