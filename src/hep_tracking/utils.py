@@ -132,3 +132,29 @@ def calculate_classification_metrics(y_true, y_pred_proba, threshold=0.5):
     }
 
     return metrics
+
+from sklearn.metrics import precision_recall_curve
+
+
+def find_best_f1_threshold(y_true, y_pred_proba):
+    """Znajduje próg decyzyjny maksymalizujący F1-score na podstawie krzywej precision-recall.
+
+    :param y_true: Prawdziwe etykiety.
+    :type y_true: numpy.ndarray
+    :param y_pred_proba: Przewidywane prawdopodobieństwa klasy pozytywnej.
+    :type y_pred_proba: numpy.ndarray
+    :return: Krotka (najlepszy_prog, najlepszy_f1).
+    :rtype: tuple[float, float]
+    """
+    precision, recall, thresholds = precision_recall_curve(y_true, y_pred_proba)
+    # precision/recall mają o jeden element więcej niż thresholds (ostatni punkt
+    # odpowiada progowi +inf), więc obcinamy do wspólnej długości
+    f1_scores = np.divide(
+        2 * precision[:-1] * recall[:-1],
+        precision[:-1] + recall[:-1],
+        out=np.zeros_like(precision[:-1]),
+        where=(precision[:-1] + recall[:-1]) != 0,
+    )
+    best_idx = np.argmax(f1_scores)
+    return thresholds[best_idx], f1_scores[best_idx]
+
