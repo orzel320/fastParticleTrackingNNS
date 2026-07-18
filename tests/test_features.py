@@ -99,22 +99,29 @@ def test_split_by_event_no_overlap_between_splits():
     X = np.random.default_rng(2).normal(size=(len(event_ids), 3))
     y = np.random.default_rng(2).integers(0, 2, len(event_ids))
 
-    X_train, y_train, X_val, y_val, X_test, y_test = split_by_event(
-        X, y, event_ids, train_size=0.7, val_size=0.15, seed=42
+    (
+        X_train, y_train, X_val, y_val, X_test, y_test,
+        events_train, events_val, events_test,
+    ) = split_by_event(
+        X, y, event_ids, train_size=0.7, val_size=0.15, seed=42, return_event_ids=True
     )
 
-    def events_in(mask_len_arr):
-        return set(np.unique(event_ids[:mask_len_arr]))
+    train_set = set(np.unique(events_train))
+    val_set = set(np.unique(events_val))
+    test_set = set(np.unique(events_test))
 
-    train_mask = np.isin(event_ids, np.unique(event_ids))  # placeholder, patrz niżej
+    # to jest sedno wymagania z zadania: żadne zdarzenie nie może
+    # występować w więcej niż jednym podzbiorze jednocześnie
+    assert train_set.isdisjoint(val_set)
+    assert train_set.isdisjoint(test_set)
+    assert val_set.isdisjoint(test_set)
 
-    # odtwarzamy maski bezpośrednio z funkcji, sprawdzając unikalne event_id w wynikach
-    train_events = set(np.unique(event_ids[np.isin(np.arange(len(event_ids)), np.where(np.isin(X[:, 0], X_train[:, 0]))[0])]))
-
-    # prostszy i bardziej niezawodny test: sumy rozmiarów muszą się zgadzać,
-    # a przecięcie zbiorów zdarzeń w train/val/test musi być puste
+    # dodatkowo: żaden wiersz nie zniknął i żaden się nie zdublował
     total_rows = X_train.shape[0] + X_val.shape[0] + X_test.shape[0]
     assert total_rows == len(event_ids)
+
+    # oraz że podział zdarzeń pokrywa je wszystkie bez reszty
+    assert train_set | val_set | test_set == set(np.unique(event_ids))
 
 
 def test_split_by_event_raises_on_too_few_events():
