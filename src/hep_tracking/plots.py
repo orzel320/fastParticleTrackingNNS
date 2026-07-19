@@ -357,3 +357,103 @@ def plot_pr_curves(models_dict, X_test, y_test, output_path=None):
         plt.show()
 
     plt.close(figure)
+
+from hep_tracking.plots import (
+    plot_pareto_frontier, plot_crossover, plot_ann_scaling, plot_exact_vs_ann,
+    plot_time_dimension_heatmap, plot_time_lines_by_dimension,
+)
+
+def plot_time_dimension_heatmap(results, dims, sizes, title="Czas zapytania: Wymiarowość (D) vs Rozmiar danych (N)", output_path=None):
+    """Plots a row of heatmaps (one per algorithm) showing execution time as a
+    function of both dimensionality (D) and dataset size (N).
+
+    Args:
+        results (dict): Nested dict results[algo_name][dim][size] = time (seconds).
+        dims (list): List of dimensionalities tested, e.g. [2, 4, 8].
+        sizes (list): List of dataset sizes tested, e.g. [1000, 10000, 100000, 1000000].
+        title (str): Overall figure title.
+        output_path (str, optional): If provided, saves the plot to this path.
+    """
+    algo_names = list(results.keys())
+    n_algos = len(algo_names)
+
+    fig, axes = plt.subplots(1, n_algos, figsize=(5.5 * n_algos, 5), sharey=True)
+    if n_algos == 1:
+        axes = [axes]
+
+    all_times = [results[a][d][s] for a in algo_names for d in dims for s in sizes if s in results[a].get(d, {})]
+    vmin, vmax = min(all_times), max(all_times)
+
+    im = None
+    for ax, algo in zip(axes, algo_names):
+        matrix = np.array([[results[algo][d].get(s, np.nan) for s in sizes] for d in dims])
+
+        im = ax.imshow(matrix, aspect="auto", cmap="viridis", norm=LogNorm(vmin=vmin, vmax=vmax))
+
+        ax.set_xticks(range(len(sizes)))
+        ax.set_xticklabels([f"{s:,}" for s in sizes], rotation=45, ha="right")
+        ax.set_yticks(range(len(dims)))
+        ax.set_yticklabels([f"{d}D" for d in dims])
+        ax.set_xlabel("Rozmiar zbioru N")
+        ax.set_title(algo, fontsize=12)
+
+        threshold = (vmin * vmax) ** 0.5
+        for i in range(len(dims)):
+            for j in range(len(sizes)):
+                val = matrix[i, j]
+                if not np.isnan(val):
+                    ax.text(j, i, f"{val:.3g}s", ha="center", va="center",
+                            color="white" if val < threshold else "black", fontsize=8)
+
+    axes[0].set_ylabel("Wymiarowość (D)")
+    fig.colorbar(im, ax=axes, label="Czas zapytania [s] (skala logarytmiczna)", fraction=0.025, pad=0.02)
+    fig.suptitle(title, fontsize=14)
+
+    if output_path:
+        plt.savefig(output_path, bbox_inches="tight")
+    else:
+        plt.show()
+    plt.close()
+
+
+def plot_time_lines_by_dimension(results, dims, sizes, title="Skalowalność czasowa w funkcji N, dla różnych wymiarowości", output_path=None):
+    """Plots execution time vs dataset size (N), one subplot per dimensionality,
+    with one line per algorithm. Complements the heatmap with clearer trend lines.
+
+    Args:
+        results (dict): Nested dict results[algo_name][dim][size] = time (seconds).
+        dims (list): List of dimensionalities tested, e.g. [2, 4, 8].
+        sizes (list): List of dataset sizes tested.
+        title (str): Overall figure title.
+        output_path (str, optional): If provided, saves the plot to this path.
+    """
+    algo_names = list(results.keys())
+    markers = ['o', 's', '^', 'D', 'v']
+    colors = ['tab:blue', 'tab:green', 'tab:red', 'tab:orange', 'tab:purple']
+
+    fig, axes = plt.subplots(1, len(dims), figsize=(5.5 * len(dims), 5), sharey=True)
+    if len(dims) == 1:
+        axes = [axes]
+
+    for ax, d in zip(axes, dims):
+        for i, algo in enumerate(algo_names):
+            times = [results[algo][d].get(s, np.nan) for s in sizes]
+            ax.plot(sizes, times, marker=markers[i % len(markers)], color=colors[i % len(colors)],
+                    linestyle='--', linewidth=2, label=algo)
+
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlabel("Rozmiar zbioru N")
+        ax.set_title(f"{d}D", fontsize=12)
+        ax.grid(True, which="both", ls="--", alpha=0.5)
+
+    axes[0].set_ylabel("Czas zapytania [s]")
+    axes[-1].legend(fontsize=10, loc="upper left")
+    fig.suptitle(title, fontsize=14)
+    plt.tight_layout()
+
+    if output_path:
+        plt.savefig(output_path, bbox_inches="tight")
+    else:
+        plt.show()
+    plt.close()
