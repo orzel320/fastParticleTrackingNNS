@@ -9,9 +9,10 @@ from hep_tracking.config import TrackSimulationConfig, DatasetConfig
 def generate_tracks(
     n_tracks: int,
     n_noise: int,
-    config: TrackSimulationConfig
+    config: TrackSimulationConfig,
+    seed_offset: int = 0
 ) -> tuple[np.ndarray, np.ndarray]:
-    rng = np.random.default_rng(config.seed)
+    rng = np.random.default_rng(config.seed + seed_offset)
 
     vertices = rng.uniform(-config.vertex_spread, config.vertex_spread, (n_tracks, 3))
     thetas = rng.uniform(0.3, np.pi - 0.3, n_tracks)
@@ -79,7 +80,8 @@ def generate_datasets(configs: list[DatasetConfig], output_dir: str = "data") ->
             features, labels = generate_tracks(
                 n_tracks=n_tracks_per_event,
                 n_noise=n_noise_hits,
-                config=config.simulation_params
+                config=config.simulation_params,
+                seed_offset=event_idx
             )
 
             signal_mask = labels != -1
@@ -98,3 +100,37 @@ def generate_datasets(configs: list[DatasetConfig], output_dir: str = "data") ->
 
         filename = output_path / f"dataset_{config.name}.npz"
         np.savez_compressed(filename, X=final_features, y=final_labels, event_id=final_event_ids)
+
+if __name__ == "__main__":
+    project_root = Path(__file__).resolve().parents[2]
+    data_output_dir = str(project_root / "data")
+
+    print(f"Katalog wyjściowy: {data_output_dir}")
+    print("Przygotowywanie konfiguracji...")
+
+    easy_sim = TrackSimulationConfig(
+        hits_per_track=10, 
+        noise_ratio=0.01, 
+        sigma_pos=0.05, 
+        sigma_dir=0.005, 
+        vertex_spread=80.0
+    )
+    
+    hard_sim = TrackSimulationConfig(
+        hits_per_track=15, 
+        noise_ratio=0.20, 
+        sigma_pos=0.5, 
+        sigma_dir=0.02, 
+        vertex_spread=20.0
+    )
+
+    target_sizes = {"1k": 1_000, "10k": 10_000, "100k": 100_000, "1M": 1_000_000}
+    configs = []
+
+    for size_label, size_val in target_sizes.items():
+        configs.append(DatasetConfig(f"easy_{size_label}", size_val, easy_sim))
+        configs.append(DatasetConfig(f"hard_{size_label}", size_val, hard_sim))
+
+    print("Rozpoczynam generowanie zbiorów danych...")
+    generate_datasets(configs, output_dir=data_output_dir)
+    print("Generowanie zbiorów zakończone sukcesem!")

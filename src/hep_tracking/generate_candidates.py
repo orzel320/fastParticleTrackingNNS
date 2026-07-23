@@ -43,3 +43,17 @@ def generate_and_save_candidates(data_dir: str = "data", k_neighbors: int = 5, s
         
         np.savez_compressed(output_name, indices=all_indices, distances=all_distances)
         print(f"  Zapisano kandydatów do: {output_name.name}")
+
+if __name__ == "__main__":
+    project_root = Path(__file__).resolve().parents[2]
+    data_input_dir = str(project_root / "data")
+
+    print(f"Skanowanie katalogu: {data_input_dir}")
+    
+    print("\n=== Generowanie kandydatów (Wszystkie 5 cech) ===")
+    generate_and_save_candidates(data_dir=data_input_dir, spatial_only=False)
+    
+    print("\n=== Generowanie kandydatów przestrzennych (Tylko x, y, z) ===")
+    generate_and_save_candidates(data_dir=data_input_dir, spatial_only=True)
+    
+    print("\nWszystkie zbiory kandydatów zostały wygenerowane pomyślnie!")
