@@ -1,187 +1,150 @@
+from abc import ABC, abstractmethod
+from typing import Literal
+
 import numpy as np
+import faiss
+import hnswlib
 from scipy.spatial import cKDTree
-from sklearn.neighbors import KDTree, BallTree
-import cupy as cp
 from sklearn.neighbors import NearestNeighbors
 
+_GPU_RES = faiss.StandardGpuResources()
 
-def knn_numpy_brute_force(
-    features, k, chunk_size=2048, max_mem_bytes=512 * 1024 * 1024
-):
-    """Computes exact k-nearest neighbors using a brute-force numpy approach.
 
-    This function calculates pairwise Euclidean distances using vectorization and matrix
-    multiplication.
+class BaseKNN(ABC):
+    @abstractmethod
+    def fit(self, X: np.ndarray) -> None:
+        pass
 
-    :param features: Feature matrix of shape (N, D).
-    :type features: numpy.ndarray
-    :param k: Number of nearest neighbors to find (excluding the point itself).
-    :type k: int
-    :param max_mem_bytes: Maximum memory allowance in bytes for the chunk computation.
-                          Defaults to 512 MB.
-    :type max_mem_bytes: int, optional
-    :return: A tuple of (distances, indices) arrays, each of shape (N, k).
-    :rtype: tuple[numpy.ndarray, numpy.ndarray]
-    """
-    n_samples = features.shape[0]
-    squared_norms = np.sum(features * features, axis=1)
+    @abstractmethod
+    def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        pass
 
-    nearest_indices = np.empty((n_samples, k), dtype=np.int64)
-    nearest_distances = np.empty((n_samples, k), dtype=np.float32)
 
-    bytes_per_row = n_samples * 12 * 3
-    chunk_size = max(1, max_mem_bytes // bytes_per_row)
+class FaissIVFFlat(BaseKNN):
+    def __init__(self, nlist: int = 100, nprobe: int = 1, use_gpu: bool = False):
+        self.nlist = nlist
+        self.nprobe = nprobe
+        self.use_gpu = use_gpu
+        self.index = None
 
-    for start_idx in range(0, n_samples, chunk_size):
-        end_idx = min(start_idx + chunk_size, n_samples)
+    def fit(self, X: np.ndarray) -> None:
+        features_contig = np.ascontiguousarray(X, dtype=np.float32)
+        dimension = features_contig.shape[1]
 
-        distances = (
-            squared_norms[start_idx:end_idx, None]
-            + squared_norms[None, :]
-            - 2.0 * (features[start_idx:end_idx] @ features.T)
+        quantizer = faiss.IndexFlatL2(dimension)
+        cpu_index = faiss.IndexIVFFlat(quantizer, dimension, self.nlist, faiss.METRIC_L2)
+
+        if self.use_gpu:
+            self.index = faiss.index_cpu_to_gpu(_GPU_RES, 0, cpu_index)
+        else:
+            self.index = cpu_index
+
+        self.index.train(features_contig)
+        self.index.add(features_contig)
+        self.index.nprobe = self.nprobe
+
+    def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        features_contig = np.ascontiguousarray(X, dtype=np.float32)
+        distances, indices = self.index.search(features_contig, k + 1)
+
+        if self.use_gpu:
+            _GPU_RES.syncDefaultStreamCurrentDevice()
+
+        return distances[:, 1:], indices[:, 1:]
+
+
+class FaissIVFPQ(BaseKNN):
+    def __init__(self, nlist: int = 100, m: int = 5, nbits: int = 8, nprobe: int = 1, use_gpu: bool = False):
+        self.nlist = nlist
+        self.m = m
+        self.nbits = nbits
+        self.nprobe = nprobe
+        self.use_gpu = use_gpu
+        self.index = None
+
+    def fit(self, X: np.ndarray) -> None:
+        features_contig = np.ascontiguousarray(X, dtype=np.float32)
+        dimension = features_contig.shape[1]
+
+        if dimension % self.m != 0:
+            raise ValueError(f"Wymiar przestrzeni ({dimension}) musi być podzielny przez m ({self.m}).")
+
+        quantizer = faiss.IndexFlatL2(dimension)
+        cpu_index = faiss.IndexIVFPQ(quantizer, dimension, self.nlist, self.m, self.nbits)
+
+        if self.use_gpu:
+            self.index = faiss.index_cpu_to_gpu(_GPU_RES, 0, cpu_index)
+        else:
+            self.index = cpu_index
+
+        self.index.train(features_contig)
+        self.index.add(features_contig)
+        self.index.nprobe = self.nprobe
+
+    def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        features_contig = np.ascontiguousarray(X, dtype=np.float32)
+        distances, indices = self.index.search(features_contig, k + 1)
+
+        if self.use_gpu:
+            _GPU_RES.syncDefaultStreamCurrentDevice()
+
+        return distances[:, 1:], indices[:, 1:]
+
+
+class HnswGraph(BaseKNN):
+    def __init__(self, m: int = 16, ef_construction: int = 200, ef: int = 50, num_threads: int = -1):
+        self.m = m
+        self.ef_construction = ef_construction
+        self.ef = ef
+        self.num_threads = num_threads
+        self.index = None
+
+    def fit(self, X: np.ndarray) -> None:
+        features_contig = np.ascontiguousarray(X, dtype=np.float32)
+        n_samples, dimension = features_contig.shape
+
+        self.index = hnswlib.Index(space="l2", dim=dimension)
+        self.index.init_index(max_elements=n_samples, ef_construction=self.ef_construction, M=self.m)
+        self.index.set_num_threads(self.num_threads)
+        self.index.add_items(features_contig)
+        self.index.set_ef(self.ef)
+
+    def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        features_contig = np.ascontiguousarray(X, dtype=np.float32)
+        indices, distances = self.index.knn_query(features_contig, k=k + 1)
+
+        return distances[:, 1:].astype(np.float32), indices[:, 1:]
+
+
+class ScipyCKDTree(BaseKNN):
+    def __init__(self, workers: int = -1):
+        self.workers = workers
+        self.tree = None
+
+    def fit(self, X: np.ndarray) -> None:
+        self.tree = cKDTree(X)
+
+    def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        distances, indices = self.tree.query(X, k=k + 1, workers=self.workers)
+        return distances[:, 1:].astype(np.float32), indices[:, 1:]
+
+
+class SklearnKNN(BaseKNN):
+    def __init__(self, algorithm: Literal["kd_tree", "ball_tree"] = "kd_tree", leaf_size: int = 100, n_jobs: int = -1):
+        self.algorithm = algorithm
+        self.leaf_size = leaf_size
+        self.n_jobs = n_jobs
+        self.nn = None
+
+    def fit(self, X: np.ndarray) -> None:
+        self.nn = NearestNeighbors(
+            n_neighbors=1, 
+            algorithm=self.algorithm, 
+            leaf_size=self.leaf_size, 
+            n_jobs=self.n_jobs
         )
-        distances = np.maximum(distances, 0.0)
+        self.nn.fit(X)
 
-        rows = np.arange(start_idx, end_idx)
-        distances[rows - start_idx, rows] = np.inf
-
-        partitioned_indices = np.argpartition(distances, k, axis=1)[:, :k]
-
-        for i in range(end_idx - start_idx):
-            sorted_order = np.argsort(distances[i, partitioned_indices[i]])
-            nearest_indices[start_idx + i] = partitioned_indices[i, sorted_order]
-            nearest_distances[start_idx + i] = np.sqrt(
-                distances[i, partitioned_indices[i, sorted_order]]
-            )
-
-    return nearest_distances, nearest_indices
-
-
-def knn_cupy_brute_force(
-    features, k, chunk_size=2048, max_vram_bytes=512 * 1024 * 1024
-):
-    """Computes exact k-nearest neighbors using CuPy.
-
-    This function accelerates the brute-force pairwise distance calculation using GPU
-    matrix operations.
-
-    :param features: Feature matrix of shape (N, D).
-    :type features: numpy.ndarray
-    :param k: Number of nearest neighbors to find (excluding the point itself).
-    :type k: int
-    :param max_vram_bytes: Maximum VRAM allowance in bytes for the chunk computation.
-                           Defaults to 512 MB.
-    :type max_vram_bytes: int, optional
-    :return: A tuple of (distances, indices) arrays, each of shape (N, k).
-    :rtype: tuple[numpy.ndarray, numpy.ndarray]
-    """
-    features_gpu = cp.asarray(features)
-    n_samples = features_gpu.shape[0]
-
-    squared_norms = cp.sum(features_gpu * features_gpu, axis=1)
-
-    nearest_indices = np.empty((n_samples, k), dtype=np.int64)
-    nearest_distances = np.empty((n_samples, k), dtype=np.float32)
-
-    bytes_per_row = n_samples * 12 * 3
-    chunk_size = max(1, max_vram_bytes // bytes_per_row)
-
-    mempool = cp.get_default_memory_pool()
-
-    for start_idx in range(0, n_samples, chunk_size):
-        end_idx = min(start_idx + chunk_size, n_samples)
-
-        distances = (
-            squared_norms[start_idx:end_idx, None]
-            + squared_norms[None, :]
-            - 2.0 * (features_gpu[start_idx:end_idx] @ features_gpu.T)
-        )
-        distances = cp.maximum(distances, 0.0)
-
-        rows = cp.arange(start_idx, end_idx)
-        distances[rows - start_idx, rows] = cp.inf
-
-        partitioned_indices = cp.argpartition(distances, k, axis=1)[:, :k]
-
-        dist_cpu = distances.get()
-        part_idx_cpu = partitioned_indices.get()
-
-        for i in range(end_idx - start_idx):
-            sorted_order = np.argsort(dist_cpu[i, part_idx_cpu[i]])
-            nearest_indices[start_idx + i] = part_idx_cpu[i, sorted_order]
-            nearest_distances[start_idx + i] = np.sqrt(
-                dist_cpu[i, part_idx_cpu[i, sorted_order]]
-            )
-
-        del distances
-        del partitioned_indices
-        mempool.free_all_blocks()
-
-    return nearest_distances, nearest_indices
-
-
-def knn_scipy_ckdtree(features, k):
-    """Computes exact k-nearest neighbors using scipy's cKDTree.
-
-    Builds an axis-aligned KD-tree and queries it in parallel across all CPU cores.
-    The query searches for k+1 neighbors and discards the first one (self).
-
-    :param features: Feature matrix of shape (N, D).
-    :type features: numpy.ndarray
-    :param k: Number of nearest neighbors to find.
-    :type k: int
-    :return: A tuple of (distances, indices) arrays, each of shape (N, k).
-    :rtype: tuple[numpy.ndarray, numpy.ndarray]
-    """
-    tree = cKDTree(features)
-    distances, indices = tree.query(features, k=k + 1, workers=-1)
-
-    return distances[:, 1:].astype(np.float32), indices[:, 1:]
-
-
-def knn_sklearn_kdtree(features, k, leaf_size=100):
-    """Computes exact k-nearest neighbors using scikit-learn's KDTree via NearestNeighbors.
-
-    Wrapped in the NearestNeighbors estimator to enable joblib-based multiprocessing.
-    Space is partitioned using axis-aligned hyperplanes.
-
-    :param features: Feature matrix of shape (N, D).
-    :type features: numpy.ndarray
-    :param k: Number of nearest neighbors to find.
-    :type k: int
-    :param leaf_size: Number of points at which to switch to brute-force.
-    :type leaf_size: int, optional
-    :return: A tuple of (distances, indices) arrays, each of shape (N, k).
-    :rtype: tuple[numpy.ndarray, numpy.ndarray]
-    """
-    nn = NearestNeighbors(
-        n_neighbors=k + 1, algorithm="kd_tree", leaf_size=leaf_size, n_jobs=-1
-    )
-    nn.fit(features)
-    distances, indices = nn.kneighbors(features)
-
-    return distances[:, 1:].astype(np.float32), indices[:, 1:]
-
-
-def knn_sklearn_balltree(features, k, leaf_size=100):
-    """Computes exact k-nearest neighbors using scikit-learn's BallTree via NearestNeighbors.
-
-    Wrapped in the NearestNeighbors estimator to enable joblib-based multiprocessing.
-    Space is partitioned using nested hyperspheres.
-
-    :param features: Feature matrix of shape (N, D).
-    :type features: numpy.ndarray
-    :param k: Number of nearest neighbors to find.
-    :type k: int
-    :param leaf_size: Number of points at which to switch to brute-force.
-    :type leaf_size: int, optional
-    :return: A tuple of (distances, indices) arrays, each of shape (N, k).
-    :rtype: tuple[numpy.ndarray, numpy.ndarray]
-    """
-    nn = NearestNeighbors(
-        n_neighbors=k + 1, algorithm="ball_tree", leaf_size=leaf_size, n_jobs=-1
-    )
-    nn.fit(features)
-    distances, indices = nn.kneighbors(features)
-
-    return distances[:, 1:].astype(np.float32), indices[:, 1:]
+    def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        distances, indices = self.nn.kneighbors(X, n_neighbors=k + 1)
+        return distances[:, 1:].astype(np.float32), indices[:, 1:]

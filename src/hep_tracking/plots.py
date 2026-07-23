@@ -1,48 +1,41 @@
+import itertools
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
 
-def plot_3d_hits(features, labels, output_path=None):
-    """Visualizes synthetic detector hits in a 3D scatter plot.
+from pathlib import Path
+import sys
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from hep_tracking.dataset import TrackDataset
 
-    :param features: Feature matrix of shape (N, 5), where the first three columns are spatial coordinates.
-    :type features: numpy.ndarray
-    :param labels: Array of shape (N,) containing track IDs or -1 for noise.
-    :type labels: numpy.ndarray
-    :param output_path: Path to save the generated plot. If None, the plot is displayed interactively.
-    :type output_path: str or pathlib.Path, optional
-    """
+
+def plot_3d_hits(dataset: TrackDataset, output_path: str = None):
     figure = plt.figure(figsize=(7, 6))
     axes = figure.add_subplot(111, projection="3d")
+
+    features = dataset.X
+    labels = dataset.y
 
     signal_mask = labels >= 0
     noise_mask = ~signal_mask
 
     axes.scatter(
-        features[noise_mask, 0],
-        features[noise_mask, 1],
-        features[noise_mask, 2],
-        s=3,
-        c="lightgray",
-        alpha=0.4,
-        label="noise",
+        features[noise_mask, 0], features[noise_mask, 1], features[noise_mask, 2],
+        s=3, c="lightgray", alpha=0.4, label="noise"
     )
 
     axes.scatter(
-        features[signal_mask, 0],
-        features[signal_mask, 1],
-        features[signal_mask, 2],
-        s=6,
-        c=labels[signal_mask],
-        cmap="tab20",
-        alpha=0.9,
+        features[signal_mask, 0], features[signal_mask, 1], features[signal_mask, 2],
+        s=6, c=labels[signal_mask], cmap="tab20", alpha=0.9
     )
 
     axes.set_xlabel("x")
     axes.set_ylabel("y")
     axes.set_zlabel("z")
-    axes.set_title("Synthetic detector hits: color = track id")
+    axes.set_title("Synthetic detector hits")
     axes.legend(loc="upper left")
 
     plt.tight_layout()
@@ -51,25 +44,13 @@ def plot_3d_hits(features, labels, output_path=None):
         plt.savefig(output_path)
     else:
         plt.show()
-
     plt.close(figure)
 
 
-def plot_distance_distributions(features, labels, output_path=None, sample_size=2000):
-    """Plots histograms of pairwise distances for same-track vs. cross-track hits.
+def plot_distance_distributions(dataset: TrackDataset, output_path: str = None, sample_size: int = 2000):
+    features = dataset.X
+    labels = dataset.y
 
-    Sub-samples the data if it exceeds sample_size to prevent memory explosion
-    during pairwise distance calculation.
-
-    :param features: Feature matrix of shape (N, 5).
-    :type features: numpy.ndarray
-    :param labels: Array of shape (N,) containing track IDs or -1 for noise.
-    :type labels: numpy.ndarray
-    :param output_path: Path to save the generated plot. If None, the plot is displayed interactively.
-    :type output_path: str or pathlib.Path, optional
-    :param sample_size: Maximum number of points to sample for distance computation.
-    :type sample_size: int
-    """
     signal_mask = labels >= 0
     filtered_features = features[signal_mask]
     filtered_labels = labels[signal_mask]
@@ -84,7 +65,6 @@ def plot_distance_distributions(features, labels, output_path=None, sample_size=
 
     label_matrix_a, label_matrix_b = np.meshgrid(filtered_labels, filtered_labels)
     same_track_mask_matrix = label_matrix_a == label_matrix_b
-
     same_track_mask_flat = squareform(same_track_mask_matrix, checks=False)
 
     same_track_distances = distances[same_track_mask_flat]
@@ -92,12 +72,8 @@ def plot_distance_distributions(features, labels, output_path=None, sample_size=
 
     figure, axes = plt.subplots(figsize=(8, 5))
 
-    axes.hist(
-        same_track_distances, bins=50, alpha=0.6, density=True, label="Same Track"
-    )
-    axes.hist(
-        cross_track_distances, bins=50, alpha=0.6, density=True, label="Cross Track"
-    )
+    axes.hist(same_track_distances, bins=50, alpha=0.6, density=True, label="Same Track")
+    axes.hist(cross_track_distances, bins=50, alpha=0.6, density=True, label="Cross Track")
 
     axes.set_xlabel("Euclidean Distance in Feature Space")
     axes.set_ylabel("Density")
@@ -110,127 +86,77 @@ def plot_distance_distributions(features, labels, output_path=None, sample_size=
         plt.savefig(output_path)
     else:
         plt.show()
-
     plt.close(figure)
 
-def plot_pareto_frontier(results: dict, title: str = "Wydajność algorytmów ANN: Recall vs. QPS", output_path: str = None):
-    """Plots the Recall vs. QPS Pareto frontier for different ANN models.
 
-    Args:
-        results (dict): Dictionary containing plotting data. Expected format:
-                        {'ModelName': {'recall': [...], 'qps': [...], 'labels': [...]}}
-        title (str): Title of the plot.
-        output_path (str, optional): If provided, saves the plot to this path instead of showing it.
-    """
+def plot_pareto_frontier(df: pd.DataFrame, title: str = "Pareto Frontier", output_path: str = None):
     plt.figure(figsize=(10, 7))
 
-    colors = {"IVFFlat": "blue", "IVFPQ": "green", "HNSW": "red"}
-    markers = {"IVFFlat": "o", "IVFPQ": "s", "HNSW": "^"}
+    markers = itertools.cycle(['o', 's', '^', 'D', 'v', 'p', '*'])
+    colors = itertools.cycle(plt.cm.tab10.colors)
 
-    for name, data in results.items():
-        c = colors.get(name, "black")
-        m = markers.get(name, "x")
-        
+    for model, group in df.groupby("Model"):
+        group = group.sort_values("Recall")
         plt.plot(
-            data["recall"], data["qps"], 
-            marker=m, color=c, 
-            linestyle='-', linewidth=2, markersize=8, label=name
+            group["Recall"], group["QPS"], 
+            marker=next(markers), color=next(colors), 
+            linestyle='-', linewidth=2, markersize=8, label=model
         )
         
-        if "labels" in data:
-            for i, label in enumerate(data["labels"]):
-                if i % 2 == 0 or i == len(data["labels"]) - 1:
-                    plt.annotate(
-                        label, (data["recall"][i], data["qps"][i]), 
-                        textcoords="offset points", xytext=(0, 10), 
-                        ha='center', fontsize=9, alpha=0.7
-                    )
+        for i, (_, row) in enumerate(group.iterrows()):
+            if i % 2 == 0 or i == len(group) - 1:
+                plt.annotate(
+                    row.get("Dataset", ""), (row["Recall"], row["QPS"]), 
+                    textcoords="offset points", xytext=(0, 10), 
+                    ha='center', fontsize=9, alpha=0.7
+                )
 
     plt.yscale("log")
-    plt.xlabel("Recall (Czułość względem dokładnego k-NN)", fontsize=12)
-    plt.ylabel("QPS - Queries Per Second (Wyżej = szybciej)", fontsize=12)
+    plt.xlabel("Recall", fontsize=12)
+    plt.ylabel("QPS", fontsize=12)
     plt.title(title, fontsize=14)
     plt.grid(True, which="both", ls="--", alpha=0.5)
     plt.legend(fontsize=11)
     
-    plt.xlim(0.4, 1.05)
+    plt.xlim(max(0.0, df["Recall"].min() - 0.1), min(1.05, df["Recall"].max() + 0.05))
     plt.tight_layout()
 
     if output_path:
         plt.savefig(output_path)
-        print(f"Zapisano wykres do: {output_path}")
     else:
         plt.show()
-        
     plt.close()
 
 
-def plot_crossover(sizes: list, cpu_times: list, gpu_times: list, title: str = "Crossover N: CPU vs GPU", output_path: str = None):
-    """Plots query time vs dataset size to identify the CPU/GPU performance crossover point.
-
-    Converts input times from seconds to milliseconds for better readability.
-
-    Args:
-        sizes (list): List of dataset sizes (N).
-        cpu_times (list): List of CPU query times in seconds.
-        gpu_times (list): List of GPU query times in seconds.
-        title (str): Title of the plot.
-        output_path (str, optional): If provided, saves the plot to this path.
-    """
+def plot_scaling(
+    df: pd.DataFrame, 
+    x_col: str, 
+    y_col: str, 
+    title: str = "Scaling Performance", 
+    log_x: bool = True, 
+    log_y: bool = True, 
+    output_path: str = None
+):
     plt.figure(figsize=(10, 6))
-    
-    cpu_ms = [t * 1000 for t in cpu_times]
-    gpu_ms = [t * 1000 for t in gpu_times]
 
-    plt.plot(sizes, cpu_ms, marker='o', linewidth=2, color='blue', label='CPU')
-    plt.plot(sizes, gpu_ms, marker='s', linewidth=2, color='red', label='GPU')
+    markers = itertools.cycle(['o', 's', '^', 'D', 'v', 'p', '*'])
+    colors = itertools.cycle(plt.cm.tab10.colors)
 
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel("Rozmiar datasetu N (Liczba hitów)", fontsize=12)
-    plt.ylabel("Czas zapytania (ms)", fontsize=12)
-    plt.title(title, fontsize=14)
-    plt.grid(True, which="both", ls="--", alpha=0.5)
-    plt.legend(fontsize=12)
+    for model, group in df.groupby("Model"):
+        group = group.sort_values(x_col)
+        plt.plot(
+            group[x_col], group[y_col], 
+            marker=next(markers), color=next(colors), 
+            linestyle='-', linewidth=2, label=model
+        )
 
-    plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path)
-        print(f"Zapisano wykres do: {output_path}")
-    else:
-        plt.show()
+    if log_x:
+        plt.xscale('log')
+    if log_y:
+        plt.yscale('log')
         
-    plt.close()
-
-def plot_ann_scaling(sizes: list, results_time: dict, use_gpu: bool, title: str = "Przestrzeń 8D: Exact vs ANN", output_path: str = None):
-    """Plots the final execution time comparison between exact kNN and ANN models.
-
-    Dynamically updates the legend labels for FAISS ANN algorithms based on the 
-    `use_gpu` flag to accurately reflect the hardware environment.
-
-    Args:
-        sizes (list): List of dataset sizes (N).
-        results_time (dict): Dictionary mapping model names to lists of execution times.
-        use_gpu (bool): Indicates if FAISS ANN models (IVFFlat/IVFPQ) utilized the GPU.
-        title (str, optional): Title of the plot.
-        output_path (str, optional): If provided, saves the plot to this path.
-    """
-    plt.figure(figsize=(10, 6))
-
-    # plt.plot(sizes, results_time.get("Exact_CPU", []), marker='o', color='black', linestyle='-', linewidth=2, label='Exact kNN (CPU)')
-    # plt.plot(sizes, results_time.get("Exact_GPU", []), marker='v', color='purple', linestyle='-', linewidth=2, label='Exact kNN (GPU)')
-
-    ivf_env = "GPU" if use_gpu else "CPU"
-    plt.plot(sizes, results_time.get("IVFFlat", []), marker='s', color='blue', linestyle='--', linewidth=2, label=f'IVFFlat ({ivf_env})')
-    plt.plot(sizes, results_time.get("IVFPQ", []), marker='D', color='green', linestyle='--', linewidth=2, label=f'IVFPQ ({ivf_env})')
-    plt.plot(sizes, results_time.get("HNSW", []), marker='^', color='red', linestyle='--', linewidth=2, label='HNSW (CPU)')
-
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel("Rozmiar zbioru danych N (Liczba hitów)", fontsize=12)
-    plt.ylabel("Czas zapytania (sekundy)", fontsize=12)
-
+    plt.xlabel(x_col, fontsize=12)
+    plt.ylabel(y_col, fontsize=12)
     plt.title(title, fontsize=14)
     plt.grid(True, which="both", ls="--", alpha=0.5)
     plt.legend(fontsize=11)
@@ -241,55 +167,14 @@ def plot_ann_scaling(sizes: list, results_time: dict, use_gpu: bool, title: str 
         plt.savefig(output_path)
     else:
         plt.show()
-        
     plt.close()
 
 
-def plot_exact_vs_ann(sizes: list, results_time: dict, title: str = "Wymiar 5D: Exact kNN vs ANN", output_path: str = None):
-    """Plots the comparison between Exact kNN and ANN approaches.
-
-    Args:
-        sizes (list): List of dataset sizes (N).
-        results_time (dict): Dictionary mapping model names to execution times.
-        title (str): Title of the plot.
-        output_path (str, optional): If provided, saves the plot to this path.
-    """
-    plt.figure(figsize=(10, 6))
-    
-    # plt.plot(sizes, results_time["Exact_CPU"], marker='o', color='black', linestyle='-', linewidth=2, label='FAISS Brute (CPU) - exact')
-    # plt.plot(sizes, results_time["Exact_GPU"], marker='v', color='purple', linestyle='-', linewidth=2, label='FAISS Brute (GPU) - exact')
-    plt.plot(sizes, results_time["cKDTree_CPU"], marker='d', color='teal', linestyle='-', linewidth=2, label='Scipy cKDTree (CPU) - exact')
-    plt.plot(sizes, results_time["IVFFlat_GPU"], marker='s', color='red', linestyle='--', linewidth=2, label='IVFFlat (GPU) - approx')
-    plt.plot(sizes, results_time["HNSW_CPU"], marker='^', color='orange', linestyle='--', linewidth=2, label='HNSW (CPU) - approx')
-
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel("Rozmiar zbioru danych N (Liczba hitów)", fontsize=12)
-    plt.ylabel("Czas zapytania (sekundy)", fontsize=12)
-    plt.title(title, fontsize=14)
-    plt.grid(True, which="both", ls="--", alpha=0.5)
-    plt.legend(fontsize=11)
-    
-    plt.tight_layout()
-    if output_path:
-        plt.savefig(output_path)
-    else:
-        plt.show()
-    plt.close()
-
-def plot_roc_curves(models_dict, X_test, y_test, output_path=None):
-    """Plots Receiver Operating Characteristic (ROC) curves for multiple models.
-
-    :param models_dict: Dictionary mapping model names to trained classifier objects.
-    :type models_dict: dict
-    :param X_test: Test feature matrix.
-    :type X_test: numpy.ndarray
-    :param y_test: True binary labels for the test set.
-    :type y_test: numpy.ndarray
-    :param output_path: Path to save the generated plot. If None, the plot is displayed interactively.
-    :type output_path: str or pathlib.Path, optional
-    """
+def plot_roc_curves(models_dict: dict, test_dataset: TrackDataset, output_path: str = None):
     figure, axes = plt.subplots(figsize=(8, 6))
+
+    X_test = test_dataset.X
+    y_test = test_dataset.y
 
     for model_name, model in models_dict.items():
         y_pred_proba = model.predict_proba(X_test)[:, 1]
@@ -313,23 +198,14 @@ def plot_roc_curves(models_dict, X_test, y_test, output_path=None):
         plt.savefig(output_path)
     else:
         plt.show()
-
     plt.close(figure)
 
 
-def plot_pr_curves(models_dict, X_test, y_test, output_path=None):
-    """Plots Precision-Recall (PR) curves for multiple models.
-
-    :param models_dict: Dictionary mapping model names to trained classifier objects.
-    :type models_dict: dict
-    :param X_test: Test feature matrix.
-    :type X_test: numpy.ndarray
-    :param y_test: True binary labels for the test set.
-    :type y_test: numpy.ndarray
-    :param output_path: Path to save the generated plot. If None, the plot is displayed interactively.
-    :type output_path: str or pathlib.Path, optional
-    """
+def plot_pr_curves(models_dict: dict, test_dataset: TrackDataset, output_path: str = None):
     figure, axes = plt.subplots(figsize=(8, 6))
+
+    X_test = test_dataset.X
+    y_test = test_dataset.y
 
     for model_name, model in models_dict.items():
         y_pred_proba = model.predict_proba(X_test)[:, 1]
@@ -355,55 +231,56 @@ def plot_pr_curves(models_dict, X_test, y_test, output_path=None):
         plt.savefig(output_path)
     else:
         plt.show()
-
     plt.close(figure)
 
-from matplotlib.colors import LogNorm
 
-def plot_time_dimension_heatmap(results, dims, sizes, title="Czas zapytania: Wymiarowość (D) vs Rozmiar danych (N)", output_path=None):
-    """Plots a row of heatmaps (one per algorithm) showing execution time as a
-    function of both dimensionality (D) and dataset size (N).
-
-    Args:
-        results (dict): Nested dict results[algo_name][dim][size] = time (seconds).
-        dims (list): List of dimensionalities tested, e.g. [2, 4, 8].
-        sizes (list): List of dataset sizes tested, e.g. [1000, 10000, 100000, 1000000].
-        title (str): Overall figure title.
-        output_path (str, optional): If provided, saves the plot to this path.
-    """
-    algo_names = list(results.keys())
-    n_algos = len(algo_names)
+def plot_metric_dimension_heatmap(
+    df: pd.DataFrame, 
+    metric: str, 
+    title: str, 
+    cmap: str = "viridis", 
+    log_scale: bool = False, 
+    output_path: str = None
+):
+    models = df["Model"].unique()
+    n_algos = len(models)
 
     fig, axes = plt.subplots(1, n_algos, figsize=(5.5 * n_algos, 5), sharey=True)
     if n_algos == 1:
         axes = [axes]
 
-    all_times = [results[a][d][s] for a in algo_names for d in dims for s in sizes if s in results[a].get(d, {})]
-    vmin, vmax = min(all_times), max(all_times)
+    vmin, vmax = df[metric].min(), df[metric].max()
+    norm = LogNorm(vmin=vmin, vmax=vmax) if log_scale else None
 
     im = None
-    for ax, algo in zip(axes, algo_names):
-        matrix = np.array([[results[algo][d].get(s, np.nan) for s in sizes] for d in dims])
+    for ax, model in zip(axes, models):
+        model_df = df[df["Model"] == model]
+        pivot = model_df.pivot_table(index="Dimension", columns="Size", values=metric, aggfunc='mean')
+        
+        im = ax.imshow(
+            pivot.values, aspect="auto", cmap=cmap, 
+            norm=norm, 
+            vmin=vmin if not log_scale else None, 
+            vmax=vmax if not log_scale else None
+        )
 
-        im = ax.imshow(matrix, aspect="auto", cmap="viridis", norm=LogNorm(vmin=vmin, vmax=vmax))
+        ax.set_xticks(range(len(pivot.columns)))
+        ax.set_xticklabels([f"{s:,}" for s in pivot.columns], rotation=45, ha="right")
+        ax.set_yticks(range(len(pivot.index)))
+        ax.set_yticklabels([f"{d}D" for d in pivot.index])
+        ax.set_xlabel("Size")
+        ax.set_title(model, fontsize=12)
 
-        ax.set_xticks(range(len(sizes)))
-        ax.set_xticklabels([f"{s:,}" for s in sizes], rotation=45, ha="right")
-        ax.set_yticks(range(len(dims)))
-        ax.set_yticklabels([f"{d}D" for d in dims])
-        ax.set_xlabel("Rozmiar zbioru N")
-        ax.set_title(algo, fontsize=12)
-
-        threshold = (vmin * vmax) ** 0.5
-        for i in range(len(dims)):
-            for j in range(len(sizes)):
-                val = matrix[i, j]
+        threshold = (vmin * vmax) ** 0.5 if log_scale else (vmin + vmax) / 2
+        for i in range(len(pivot.index)):
+            for j in range(len(pivot.columns)):
+                val = pivot.values[i, j]
                 if not np.isnan(val):
-                    ax.text(j, i, f"{val:.3g}s", ha="center", va="center",
-                            color="white" if val < threshold else "black", fontsize=8)
+                    color = "white" if (val < threshold and log_scale) or (val > threshold and not log_scale and cmap != "RdYlGn") or (val < threshold and cmap == "RdYlGn") else "black"
+                    ax.text(j, i, f"{val:.3g}", ha="center", va="center", color=color, fontsize=8)
 
-    axes[0].set_ylabel("Wymiarowość (D)")
-    fig.colorbar(im, ax=axes, label="Czas zapytania [s] (skala logarytmiczna)", fraction=0.025, pad=0.02)
+    axes[0].set_ylabel("Dimension")
+    fig.colorbar(im, ax=axes, label=metric, fraction=0.025, pad=0.02)
     fig.suptitle(title, fontsize=14)
 
     if output_path:
@@ -413,133 +290,46 @@ def plot_time_dimension_heatmap(results, dims, sizes, title="Czas zapytania: Wym
     plt.close()
 
 
-def plot_time_lines_by_dimension(results, dims, sizes, title="Skalowalność czasowa w funkcji N, dla różnych wymiarowości", output_path=None):
-    """Plots execution time vs dataset size (N), one subplot per dimensionality,
-    with one line per algorithm. Complements the heatmap with clearer trend lines.
-
-    Args:
-        results (dict): Nested dict results[algo_name][dim][size] = time (seconds).
-        dims (list): List of dimensionalities tested, e.g. [2, 4, 8].
-        sizes (list): List of dataset sizes tested.
-        title (str): Overall figure title.
-        output_path (str, optional): If provided, saves the plot to this path.
-    """
-    algo_names = list(results.keys())
-    markers = ['o', 's', '^', 'D', 'v']
-    colors = ['tab:blue', 'tab:green', 'tab:red', 'tab:orange', 'tab:purple']
-
-    fig, axes = plt.subplots(1, len(dims), figsize=(5.5 * len(dims), 5), sharey=True)
-    if len(dims) == 1:
+def plot_metric_lines_by_dimension(
+    df: pd.DataFrame, 
+    metric: str, 
+    title: str, 
+    log_y: bool = False, 
+    output_path: str = None
+):
+    dimensions = sorted(df["Dimension"].unique())
+    models = df["Model"].unique()
+    
+    fig, axes = plt.subplots(1, len(dimensions), figsize=(5.5 * len(dimensions), 5), sharey=True)
+    if len(dimensions) == 1:
         axes = [axes]
 
-    for ax, d in zip(axes, dims):
-        for i, algo in enumerate(algo_names):
-            times = [results[algo][d].get(s, np.nan) for s in sizes]
-            ax.plot(sizes, times, marker=markers[i % len(markers)], color=colors[i % len(colors)],
-                    linestyle='--', linewidth=2, label=algo)
+    markers = itertools.cycle(['o', 's', '^', 'D', 'v'])
+    colors = itertools.cycle(plt.cm.tab10.colors)
+    model_style = {m: (next(colors), next(markers)) for m in models}
+
+    for ax, d in zip(axes, dimensions):
+        dim_df = df[df["Dimension"] == d]
+        
+        for model in models:
+            model_df = dim_df[dim_df["Model"] == model].sort_values("Size")
+            if not model_df.empty:
+                c, m = model_style[model]
+                ax.plot(
+                    model_df["Size"], model_df[metric], 
+                    marker=m, color=c, linestyle='--', linewidth=2, label=model
+                )
 
         ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.set_xlabel("Rozmiar zbioru N")
+        if log_y:
+            ax.set_yscale('log')
+            
+        ax.set_xlabel("Size")
         ax.set_title(f"{d}D", fontsize=12)
         ax.grid(True, which="both", ls="--", alpha=0.5)
 
-    axes[0].set_ylabel("Czas zapytania [s]")
-    axes[-1].legend(fontsize=10, loc="upper left")
-    fig.suptitle(title, fontsize=14)
-    plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path, bbox_inches="tight")
-    else:
-        plt.show()
-    plt.close()
-
-def plot_recall_dimension_heatmap(results, dims, sizes, title="Recall: Wymiarowość (D) vs Rozmiar danych (N)", output_path=None):
-    """Plots a row of heatmaps (one per algorithm) showing recall (search quality)
-    as a function of both dimensionality (D) and dataset size (N).
-
-    Args:
-        results (dict): Nested dict results[algo_name][dim][size] = recall (0-1).
-        dims (list): List of dimensionalities tested, e.g. [2, 4, 8].
-        sizes (list): List of dataset sizes tested, e.g. [1000, 10000, 100000, 1000000].
-        title (str): Overall figure title.
-        output_path (str, optional): If provided, saves the plot to this path.
-    """
-    algo_names = list(results.keys())
-    n_algos = len(algo_names)
-
-    fig, axes = plt.subplots(1, n_algos, figsize=(5.5 * n_algos, 5), sharey=True)
-    if n_algos == 1:
-        axes = [axes]
-
-    im = None
-    for ax, algo in zip(axes, algo_names):
-        matrix = np.array([[results[algo][d].get(s, np.nan) for s in sizes] for d in dims])
-
-        # skala LINIOWA 0-1 (nie logarytmiczna jak dla czasu) - recall jest z natury
-        # ograniczony do [0, 1], a różnice blisko 1.0 są tu najważniejsze
-        im = ax.imshow(matrix, aspect="auto", cmap="RdYlGn", vmin=0.0, vmax=1.0)
-
-        ax.set_xticks(range(len(sizes)))
-        ax.set_xticklabels([f"{s:,}" for s in sizes], rotation=45, ha="right")
-        ax.set_yticks(range(len(dims)))
-        ax.set_yticklabels([f"{d}D" for d in dims])
-        ax.set_xlabel("Rozmiar zbioru N")
-        ax.set_title(algo, fontsize=12)
-
-        for i in range(len(dims)):
-            for j in range(len(sizes)):
-                val = matrix[i, j]
-                if not np.isnan(val):
-                    ax.text(j, i, f"{val:.3f}", ha="center", va="center",
-                            color="white" if val < 0.5 else "black", fontsize=8)
-
-    axes[0].set_ylabel("Wymiarowość (D)")
-    fig.colorbar(im, ax=axes, label="Recall", fraction=0.025, pad=0.02)
-    fig.suptitle(title, fontsize=14)
-
-    if output_path:
-        plt.savefig(output_path, bbox_inches="tight")
-    else:
-        plt.show()
-    plt.close()
-
-
-def plot_recall_lines_by_dimension(results, dims, sizes, title="Recall w funkcji N, dla różnych wymiarowości", output_path=None):
-    """Plots recall vs dataset size (N), one subplot per dimensionality,
-    with one line per algorithm.
-
-    Args:
-        results (dict): Nested dict results[algo_name][dim][size] = recall (0-1).
-        dims (list): List of dimensionalities tested, e.g. [2, 4, 8].
-        sizes (list): List of dataset sizes tested.
-        title (str): Overall figure title.
-        output_path (str, optional): If provided, saves the plot to this path.
-    """
-    algo_names = list(results.keys())
-    markers = ['o', 's', '^', 'D', 'v']
-    colors = ['tab:blue', 'tab:green', 'tab:red', 'tab:orange', 'tab:purple']
-
-    fig, axes = plt.subplots(1, len(dims), figsize=(5.5 * len(dims), 5), sharey=True)
-    if len(dims) == 1:
-        axes = [axes]
-
-    for ax, d in zip(axes, dims):
-        for i, algo in enumerate(algo_names):
-            recalls = [results[algo][d].get(s, np.nan) for s in sizes]
-            ax.plot(sizes, recalls, marker=markers[i % len(markers)], color=colors[i % len(colors)],
-                    linestyle='--', linewidth=2, label=algo)
-
-        ax.set_xscale('log')
-        ax.set_ylim(-0.02, 1.05)
-        ax.axhline(1.0, color="gray", linestyle=":", linewidth=1)
-        ax.set_xlabel("Rozmiar zbioru N")
-        ax.set_title(f"{d}D", fontsize=12)
-        ax.grid(True, which="both", ls="--", alpha=0.5)
-
-    axes[0].set_ylabel("Recall")
-    axes[-1].legend(fontsize=10, loc="lower left")
+    axes[0].set_ylabel(metric)
+    axes[-1].legend(fontsize=10, loc="best")
     fig.suptitle(title, fontsize=14)
     plt.tight_layout()
 
