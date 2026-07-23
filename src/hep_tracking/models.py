@@ -20,6 +20,138 @@ class BaseKNN(ABC):
         pass
 
 
+class NumpyBruteForce(BaseKNN):
+    def __init__(self, max_mem_bytes: int = 512 * 1024 * 1024):
+        self.max_mem_bytes = max_mem_bytes
+        self.X_train = None
+
+    def fit(self, X: np.ndarray) -> None:
+        self.X_train = X
+
+    def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        n_samples = X.shape[0]
+        n_train = self.X_train.shape[0]
+        
+        squared_norms_train = np.sum(self.X_train * self.X_train, axis=1)
+        squared_norms_query = np.sum(X * X, axis=1)
+
+        nearest_distances = np.empty((n_samples, k), dtype=np.float32)
+        nearest_indices = np.empty((n_samples, k), dtype=np.int64)
+
+        bytes_per_row = n_train * 12 * 3
+        chunk_size = max(1, self.max_mem_bytes // bytes_per_row)
+
+        for start_idx in range(0, n_samples, chunk_size):
+            end_idx = min(start_idx + chunk_size, n_samples)
+
+            distances = (
+                squared_norms_query[start_idx:end_idx, None]
+                + squared_norms_train[None, :]
+                - 2.0 * (X[start_idx:end_idx] @ self.X_train.T)
+            )
+            distances = np.maximum(distances, 0.0)
+
+            rows = np.arange(start_idx, end_idx)
+            if n_samples == n_train:
+                distances[rows - start_idx, rows] = np.inf
+
+            partitioned_indices = np.argpartition(distances, k, axis=1)[:, :k]
+
+            for i in range(end_idx - start_idx):
+                order = np.argsort(distances[i, partitioned_indices[i]])
+                nearest_indices[start_idx + i] = partitioned_indices[i, order]
+                nearest_distances[start_idx + i] = np.sqrt(
+                    distances[i, partitioned_indices[i, order]]
+                )
+
+        return nearest_distances, nearest_indices
+
+
+try:
+    import cupy as cp
+    
+    class CuPyBruteForce(BaseKNN):
+        def __init__(self, max_vram_bytes: int = 512 * 1024 * 1024):
+            self.max_vram_bytes = max_vram_bytes
+            self.X_train = None
+
+        def fit(self, X: np.ndarray) -> None:
+            self.X_train = cp.asarray(X)
+
+        def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+            X_gpu = cp.asarray(X)
+            n_samples = X_gpu.shape[0]
+            n_train = self.X_train.shape[0]
+
+            squared_norms_train = cp.sum(self.X_train * self.X_train, axis=1)
+            squared_norms_query = cp.sum(X_gpu * X_gpu, axis=1)
+
+            nearest_indices = np.empty((n_samples, k), dtype=np.int64)
+            nearest_distances = np.empty((n_samples, k), dtype=np.float32)
+
+            bytes_per_row = n_train * 12 * 3
+            chunk_size = max(1, self.max_vram_bytes // bytes_per_row)
+
+            mempool = cp.get_default_memory_pool()
+
+            for start_idx in range(0, n_samples, chunk_size):
+                end_idx = min(start_idx + chunk_size, n_samples)
+
+                distances = (
+                    squared_norms_query[start_idx:end_idx, None]
+                    + squared_norms_train[None, :]
+                    - 2.0 * (X_gpu[start_idx:end_idx] @ self.X_train.T)
+                )
+                distances = cp.maximum(distances, 0.0)
+
+                rows = cp.arange(start_idx, end_idx)
+                if n_samples == n_train:
+                    distances[rows - start_idx, rows] = cp.inf
+
+                partitioned_indices = cp.argpartition(distances, k, axis=1)[:, :k]
+
+                dist_cpu = distances.get()
+                part_idx_cpu = partitioned_indices.get()
+
+                for i in range(end_idx - start_idx):
+                    sorted_order = np.argsort(dist_cpu[i, part_idx_cpu[i]])
+                    nearest_indices[start_idx + i] = part_idx_cpu[i, sorted_order]
+                    nearest_distances[start_idx + i] = np.sqrt(
+                        dist_cpu[i, part_idx_cpu[i, sorted_order]]
+                    )
+
+                del distances
+                del partitioned_indices
+                mempool.free_all_blocks()
+
+            return nearest_distances, nearest_indices
+
+except ImportError:
+    pass
+
+
+class FaissExact(BaseKNN):
+    def __init__(self, use_gpu: bool = False):
+        self.use_gpu = use_gpu
+        self.index = None
+
+    def fit(self, X: np.ndarray) -> None:
+        features_contig = np.ascontiguousarray(X, dtype=np.float32)
+        cpu_index = faiss.IndexFlatL2(features_contig.shape[1])
+        if self.use_gpu:
+            self.index = faiss.index_cpu_to_gpu(_GPU_RES, 0, cpu_index)
+        else:
+            self.index = cpu_index
+        self.index.add(features_contig)
+
+    def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+        features_contig = np.ascontiguousarray(X, dtype=np.float32)
+        distances, indices = self.index.search(features_contig, k + 1)
+        if self.use_gpu:
+            _GPU_RES.syncDefaultStreamCurrentDevice()
+        return distances[:, 1:], indices[:, 1:]
+
+
 class FaissIVFFlat(BaseKNN):
     def __init__(self, nlist: int = 100, nprobe: int = 1, use_gpu: bool = False):
         self.nlist = nlist

@@ -1,28 +1,27 @@
 import numpy as np
-
-from pathlib import Path
-import sys
-sys.path.append(str(Path(__file__).resolve().parents[1]))
 from hep_tracking.dataset import TrackDataset
 
+
 def compute_pair_features(features_a: np.ndarray, features_b: np.ndarray) -> np.ndarray:
-    delta_xyz = features_a[:, :3] - features_b[:, :3]
+    n_pairs = features_a.shape[0]
+    
+    out = np.empty((n_pairs, 7), dtype=np.float32)
+
+    out[:, :3] = features_a[:, :3] - features_b[:, :3]
 
     r_a = np.hypot(features_a[:, 0], features_a[:, 1])
     r_b = np.hypot(features_b[:, 0], features_b[:, 1])
-    delta_r = (r_a - r_b)[:, np.newaxis]
+    out[:, 3] = r_a - r_b
 
-    phi_a = np.arctan2(features_a[:, 1], features_a[:, 0])
-    phi_b = np.arctan2(features_b[:, 1], features_b[:, 0])
-    delta_phi_raw = phi_a - phi_b
-    
-    delta_phi = np.arctan2(np.sin(delta_phi_raw), np.cos(delta_phi_raw))[:, np.newaxis]
+    cross_prod = features_a[:, 1] * features_b[:, 0] - features_a[:, 0] * features_b[:, 1]
+    dot_prod_xy = features_a[:, 0] * features_b[:, 0] + features_a[:, 1] * features_b[:, 1]
+    out[:, 4] = np.arctan2(cross_prod, dot_prod_xy)
 
-    dist_3d = np.linalg.norm(delta_xyz, axis=1)[:, np.newaxis]
+    out[:, 5] = np.sqrt(np.einsum('ij,ij->i', out[:, :3], out[:, :3]))
 
-    dot_product = (features_a[:, 3] * features_b[:, 3] + features_a[:, 4] * features_b[:, 4])[:, np.newaxis]
+    out[:, 6] = features_a[:, 3] * features_b[:, 3] + features_a[:, 4] * features_b[:, 4]
 
-    return np.hstack([delta_xyz, delta_r, delta_phi, dist_3d, dot_product]).astype(np.float32)
+    return out
 
 
 def create_pair_dataset(

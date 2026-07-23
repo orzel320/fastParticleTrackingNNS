@@ -1,14 +1,13 @@
 import time
+import gc
 from typing import Sequence
 import numpy as np
 import pandas as pd
 
-from pathlib import Path
-import sys
-sys.path.append(str(Path(__file__).resolve().parents[1]))
 from hep_tracking.config import KNNModelConfig
 from hep_tracking.models import BaseKNN
 from hep_tracking.dataset import TrackDataset
+
 
 class ANNBenchmarkRunner:
     def __init__(self, k_neighbors: int = 5, warmup_runs: int = 1, num_runs: int = 3):
@@ -46,6 +45,7 @@ class ANNBenchmarkRunner:
                     model.kneighbors(dataset.X, self.k_neighbors)
 
                 query_times = []
+                distances, indices = None, None
                 for _ in range(self.num_runs):
                     start_query = time.perf_counter()
                     distances, indices = model.kneighbors(dataset.X, self.k_neighbors)
@@ -63,5 +63,13 @@ class ANNBenchmarkRunner:
                     "QPS": qps,
                     "Recall": recall
                 })
+
+                del model
+                gc.collect()
+                try:
+                    import cupy as cp
+                    cp.get_default_memory_pool().free_all_blocks()
+                except ImportError:
+                    pass
 
         return pd.DataFrame(results)
