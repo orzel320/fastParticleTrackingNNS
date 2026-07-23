@@ -1,3 +1,5 @@
+"""Visualization utilities for tracking datasets, model performance, and metrics."""
+
 import itertools
 import numpy as np
 import pandas as pd
@@ -13,6 +15,16 @@ from hep_tracking.dataset import TrackDataset
 
 
 def plot_3d_hits(dataset: TrackDataset, output_path: str = None):
+    """Plot a 3D scatter visualization of synthetic detector hits.
+
+    Distinguishes visually between valid signal tracks (colored by track ID) 
+    and background noise (rendered as semi-transparent light gray points).
+
+    Args:
+        dataset: The dataset containing spatial hit features and track labels.
+        output_path: Optional file path to save the generated figure. If None, 
+            the plot is displayed interactively via `plt.show()`.
+    """
     figure = plt.figure(figsize=(7, 6))
     axes = figure.add_subplot(111, projection="3d")
 
@@ -48,6 +60,18 @@ def plot_3d_hits(dataset: TrackDataset, output_path: str = None):
 
 
 def plot_distance_distributions(dataset: TrackDataset, output_path: str = None, sample_size: int = 2000):
+    """Plot the pairwise Euclidean distance distributions between hits.
+
+    Generates overlapping histograms comparing the distances between hits belonging 
+    to the same track versus hits belonging to different tracks. To ensure memory 
+    efficiency, the distance matrix is computed on a random subset of the data.
+
+    Args:
+        dataset: The dataset containing hit features and track labels.
+        output_path: Optional file path to save the generated figure.
+        sample_size: Maximum number of signal hits to sample for the pairwise 
+            distance calculation. Defaults to 2000.
+    """
     features = dataset.X
     labels = dataset.y
 
@@ -90,6 +114,17 @@ def plot_distance_distributions(dataset: TrackDataset, output_path: str = None, 
 
 
 def plot_pareto_frontier(df: pd.DataFrame, title: str = "Pareto Frontier", output_path: str = None):
+    """Plot a Pareto frontier comparing model Recall against Queries Per Second (QPS).
+
+    Visualizes the trade-off between search quality (Recall) and search speed (QPS) 
+    across different model configurations. QPS is displayed on a logarithmic scale.
+
+    Args:
+        df: A pandas DataFrame containing at least 'Model', 'Recall', 'QPS', 
+            and 'Dataset' columns.
+        title: The title of the plot. Defaults to "Pareto Frontier".
+        output_path: Optional file path to save the generated figure.
+    """
     plt.figure(figsize=(10, 7))
 
     markers = itertools.cycle(['o', 's', '^', 'D', 'v', 'p', '*'])
@@ -137,6 +172,17 @@ def plot_scaling(
     log_y: bool = True, 
     output_path: str = None
 ):
+    """Plot scaling performance metrics across models.
+
+    Args:
+        df: DataFrame containing the metrics to plot, grouped by the 'Model' column.
+        x_col: The column name to use for the X-axis.
+        y_col: The column name to use for the Y-axis.
+        title: The title of the plot. Defaults to "Scaling Performance".
+        log_x: If True, applies a logarithmic scale to the X-axis. Defaults to True.
+        log_y: If True, applies a logarithmic scale to the Y-axis. Defaults to True.
+        output_path: Optional file path to save the generated figure.
+    """
     plt.figure(figsize=(10, 6))
 
     markers = itertools.cycle(['o', 's', '^', 'D', 'v', 'p', '*'])
@@ -171,6 +217,14 @@ def plot_scaling(
 
 
 def plot_roc_curves(models_dict: dict, test_dataset: TrackDataset, output_path: str = None):
+    """Plot Receiver Operating Characteristic (ROC) curves for multiple models.
+
+    Args:
+        models_dict: Dictionary mapping model names to trained classifier objects 
+            that implement a `predict_proba` method.
+        test_dataset: The dataset used to evaluate the ROC curves.
+        output_path: Optional file path to save the generated figure.
+    """
     figure, axes = plt.subplots(figsize=(8, 6))
 
     X_test = test_dataset.X
@@ -202,6 +256,16 @@ def plot_roc_curves(models_dict: dict, test_dataset: TrackDataset, output_path: 
 
 
 def plot_pr_curves(models_dict: dict, test_dataset: TrackDataset, output_path: str = None):
+    """Plot Precision-Recall (PR) curves for multiple classification models.
+
+    Also plots a baseline indicating the proportion of positive samples in the dataset.
+
+    Args:
+        models_dict: Dictionary mapping model names to trained classifier objects 
+            that implement a `predict_proba` method.
+        test_dataset: The dataset used to evaluate the PR curves.
+        output_path: Optional file path to save the generated figure.
+    """
     figure, axes = plt.subplots(figsize=(8, 6))
 
     X_test = test_dataset.X
@@ -242,6 +306,21 @@ def plot_metric_dimension_heatmap(
     log_scale: bool = False, 
     output_path: str = None
 ):
+    """Plot a heatmap of a specific metric across different dataset dimensions and sizes.
+
+    Creates subplots for each model found in the DataFrame. The rows correspond 
+    to dataset dimensions ('Dimension' column) and the columns correspond to 
+    dataset sizes ('Size' column).
+
+    Args:
+        df: DataFrame containing at least 'Model', 'Dimension', 'Size', and the 
+            target metric column.
+        metric: The column name of the metric to plot (e.g., 'QPS' or 'Recall').
+        title: The overarching title for the entire figure.
+        cmap: The colormap to use for the heatmap. Defaults to "viridis".
+        log_scale: If True, applies logarithmic color scaling via LogNorm. Defaults to False.
+        output_path: Optional file path to save the generated figure.
+    """
     models = df["Model"].unique()
     n_algos = len(models)
 
@@ -297,6 +376,16 @@ def plot_metric_lines_by_dimension(
     log_y: bool = False, 
     output_path: str = None
 ):
+    """Plot a line chart of a metric across dataset sizes, grouped into subplots by dimension.
+
+    Args:
+        df: DataFrame containing at least 'Model', 'Dimension', 'Size', and the 
+            target metric column.
+        metric: The column name of the metric to plot on the Y-axis.
+        title: The overarching title for the entire figure.
+        log_y: If True, applies a logarithmic scale to the Y-axis. Defaults to False.
+        output_path: Optional file path to save the generated figure.
+    """
     dimensions = sorted(df["Dimension"].unique())
     models = df["Model"].unique()
     

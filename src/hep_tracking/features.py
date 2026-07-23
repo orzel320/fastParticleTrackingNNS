@@ -1,8 +1,23 @@
+"""Feature engineering and dataset manipulation for hit pairs."""
+
 import numpy as np
 from hep_tracking.dataset import TrackDataset
 
 
 def compute_pair_features(features_a: np.ndarray, features_b: np.ndarray) -> np.ndarray:
+    """Compute relative geometric features between pairs of track hits.
+
+    Calculates a 7-dimensional feature vector for each pair, encompassing 
+    spatial differences, cylindrical radius differences, angular relationships, 
+    and vector dot products.
+
+    Args:
+        features_a: Feature matrix of the query hits.
+        features_b: Feature matrix of the candidate neighbor hits.
+
+    Returns:
+        A (N, 7) float32 array containing the computed pairwise features.
+    """
     n_pairs = features_a.shape[0]
     
     out = np.empty((n_pairs, 7), dtype=np.float32)
@@ -30,6 +45,25 @@ def create_pair_dataset(
     max_neg_ratio: float = 5.0, 
     seed: int = 42
 ) -> TrackDataset:
+    """Construct a dataset of hit pairs for binary classification.
+
+    Transforms nearest-neighbor candidate indices into a binary classification dataset. 
+    Pairs belonging to the same track are labeled as positive (1), while mismatched 
+    hits or noise hits are labeled as negative (0). To address class imbalance, 
+    the negative class is randomly downsampled.
+
+    Args:
+        dataset: The source track dataset containing original features and labels.
+        candidate_indices: An array of shape (N, K) representing the nearest 
+            neighbor indices for each hit.
+        max_neg_ratio: Maximum allowable ratio of negative to positive pairs. 
+            Defaults to 5.0.
+        seed: Random seed used for shuffling and downsampling. Defaults to 42.
+
+    Returns:
+        A new `TrackDataset` object where `X` contains the pairwise features and 
+        `y` contains binary classification labels.
+    """
     n_queries, k_neighbors = candidate_indices.shape
 
     queries = np.repeat(np.arange(n_queries), k_neighbors)
@@ -74,6 +108,29 @@ def split_by_event(
     val_size: float = 0.15, 
     seed: int = 42
 ) -> tuple[TrackDataset, TrackDataset, TrackDataset]:
+    """Split a dataset into training, validation, and test sets by event.
+
+    Groups data strictly by `event_ids` to ensure there is no data leakage 
+    across splits. Hits belonging to the same event will always remain 
+    together in the same dataset partition.
+
+    Args:
+        dataset: The source dataset to be split.
+        train_size: The proportion of unique events allocated to the training set. 
+            Defaults to 0.75.
+        val_size: The proportion of unique events allocated to the validation set. 
+            Defaults to 0.15.
+        seed: Random seed used to shuffle the unique events prior to splitting. 
+            Defaults to 42.
+
+    Returns:
+        A tuple containing three `TrackDataset` instances: the training set, 
+        the validation set, and the test set.
+
+    Raises:
+        ValueError: If the dataset contains fewer than 3 unique events, making a 
+            3-way split impossible.
+    """
     unique_events = np.unique(dataset.event_ids)
 
     if len(unique_events) < 3:

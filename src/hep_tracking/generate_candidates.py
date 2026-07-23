@@ -1,3 +1,10 @@
+"""Candidate generation utility for track building.
+
+This script processes existing dataset files and generates nearest-neighbor 
+candidates for each hit using an exact KD-Tree search. The results are 
+saved as compressed numpy archives for downstream pair classification.
+"""
+
 from pathlib import Path
 import numpy as np
 
@@ -8,6 +15,23 @@ from hep_tracking.models import ScipyCKDTree
 SPATIAL_COLUMNS = slice(0, 3)
 
 def generate_and_save_candidates(data_dir: str = "data", k_neighbors: int = 5, spatial_only: bool = False):
+    """Generate and save nearest-neighbor candidate pairs for datasets in a directory.
+
+    Scans the specified directory for `.npz` files matching the `dataset_*.npz` 
+    pattern. For each distinct event within a dataset, it computes the exact 
+    K-nearest neighbors using a KD-Tree. The resulting global candidate indices 
+    and their corresponding distances are saved to a new `.npz` file with a 
+    `candidates_` prefix.
+
+    Args:
+        data_dir: Directory containing the input dataset files. The output 
+            candidate files will also be saved here. Defaults to "data".
+        k_neighbors: The number of nearest neighbors to retrieve for each hit. 
+            Defaults to 5.
+        spatial_only: If True, distance calculations rely strictly on the first 
+            three geometric features (typically x, y, z). If False, all available 
+            features are used. Defaults to False.
+    """
     dataset_path = Path(data_dir)
 
     for file_path in dataset_path.glob("dataset_*.npz"):

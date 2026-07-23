@@ -1,3 +1,10 @@
+"""Synthetic data generation for high-energy physics tracking datasets.
+
+This module provides functions to simulate particle trajectories, generate 
+background noise, and package these into complete datasets saved as 
+compressed numpy arrays.
+"""
+
 from pathlib import Path
 import numpy as np
 import sys
@@ -12,6 +19,26 @@ def generate_tracks(
     config: TrackSimulationConfig,
     seed_offset: int = 0
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Generate synthetic particle tracks and noise hits for a single event.
+
+    Simulates linear particle trajectories originating near the origin (vertex) 
+    and propagating outwards. Adds Gaussian noise to the positions and directional 
+    vectors, and uniformly distributes random noise hits throughout the volume.
+    The returned arrays are randomly permuted so the sequence of hits does not 
+    trivially reveal the underlying tracks.
+
+    Args:
+        n_tracks: The number of distinct particle tracks to simulate.
+        n_noise: The total number of uncorrelated noise hits to inject.
+        config: The simulation parameters controlling geometry and variance.
+        seed_offset: An integer added to the base configuration seed to ensure 
+            uncorrelated randomness across different events. Defaults to 0.
+
+    Returns:
+        A tuple containing two arrays:
+            - features: A (N, 5) array of hit features representing position and direction.
+            - labels: A (N,) array of track IDs, where -1 indicates a noise hit.
+    """
     rng = np.random.default_rng(config.seed + seed_offset)
 
     vertices = rng.uniform(-config.vertex_spread, config.vertex_spread, (n_tracks, 3))
@@ -61,6 +88,20 @@ def generate_tracks(
     return features_array[permutation], labels_array[permutation]
 
 def generate_datasets(configs: list[DatasetConfig], output_dir: str = "data") -> None:
+    """Generate and serialize multiple synthetic datasets based on configurations.
+
+    Iterates through the provided dataset configurations, calculating the required 
+    number of events and hits per event. It aggregates the generated features, 
+    labels, and event IDs, then saves them as compressed `.npz` archives to the 
+    specified output directory. Track IDs are offset globally across events to 
+    ensure uniqueness within a single dataset.
+
+    Args:
+        configs: A list of configurations detailing the size and simulation 
+            parameters for each target dataset.
+        output_dir: The target directory path where the `.npz` files will be saved. 
+            The directory is created if it does not exist. Defaults to "data".
+    """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 

@@ -20,7 +20,8 @@ dependencies = [
     "ipykernel",
     "xgboost",
     "lightgbm",
-    "pandas"
+    "pandas",
+    "seaborn"
 ]
 
 [project.optional-dependencies]
