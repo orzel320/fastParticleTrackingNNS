@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from scipy.spatial.distance import pdist, squareform
 from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
+import seaborn as sns
 
 from pathlib import Path
 import sys
@@ -424,6 +425,186 @@ def plot_metric_lines_by_dimension(
 
     if output_path:
         plt.savefig(output_path, bbox_inches="tight")
+    else:
+        plt.show()
+    plt.close()
+
+def plot_silver_bullet(df: pd.DataFrame, output_path: str = None):
+    """Plot the Silver-Bullet: Physics Quality vs Total Time per Event.
+    
+    Generates scatter plots separated by Dataset, where faint points represent 
+    individual events and large crosses represent the mean performance of each pipeline.
+
+    Args:
+        df: DataFrame containing per-event pipeline evaluation results.
+            Must include 'Time_Total_s', 'Physics_Quality', 'Pipeline', and 'Dataset'.
+        output_path: Optional file path to save the generated figure.
+    """
+    summary_df = df.groupby(["Dataset", "Pipeline"]).agg(
+        Physics_Quality_Mean=("Physics_Quality", "mean"),
+        Time_Total_Mean=("Time_Total_s", "mean")
+    ).reset_index()
+
+    g = sns.relplot(
+        data=summary_df,
+        x="Time_Total_Mean",
+        y="Physics_Quality_Mean",
+        hue="Pipeline",
+        col="Dataset",
+        s=250,
+        marker="X",
+        edgecolor="black",
+        linewidth=1.5,
+        kind="scatter",
+        height=6,
+        aspect=1.2,
+        facet_kws={'sharey': False, 'sharex': False}
+    )
+
+    for dataset_name, ax in g.axes_dict.items():
+        dataset_df = df[df["Dataset"] == dataset_name]
+        
+        sns.scatterplot(
+            data=dataset_df,
+            x="Time_Total_s",
+            y="Physics_Quality",
+            hue="Pipeline",
+            ax=ax,
+            alpha=0.15,
+            s=40,
+            legend=False
+        )
+        
+        ax.set_xscale("log")
+        
+        y_min = dataset_df["Physics_Quality"].min()
+        y_max = dataset_df["Physics_Quality"].max()
+        padding = (y_max - y_min) * 0.1 if y_max != y_min else 0.05
+        
+        ax.set_ylim(max(0.0, y_min - padding), min(1.0, y_max + padding))
+        ax.grid(True, which="both", ls="--", alpha=0.5)
+
+    g.set_axis_labels("Total Time per Event (seconds)", "Physics Quality (Purity x Efficiency)")
+    g.set_titles(col_template="Dataset: {col_name}")
+    g.figure.suptitle("The Silver-Bullet Plot: Physics Quality vs Total Time", y=1.05, fontsize=16, fontweight="bold")
+    
+    sns.move_legend(g, "center left", bbox_to_anchor=(1.02, 0.5), title="Pipeline (X = Mean)")
+
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    else:
+        plt.show()
+    plt.close()
+
+def plot_time_vs_size(df: pd.DataFrame, output_path: str = None):
+    """Plot the execution time scalability against the number of hits per event.
+
+    Args:
+        df: DataFrame containing evaluation results with 'Hits', 'Time_Total_s', and 'Pipeline'.
+        output_path: Optional file path to save the generated figure.
+    """
+    plt.figure(figsize=(10, 6))
+    
+    sns.lineplot(
+        data=df, 
+        x="Hits", 
+        y="Time_Total_s", 
+        hue="Pipeline", 
+        marker="o",
+        errorbar=None, 
+        linewidth=2
+    )
+
+    plt.title("Scalability: Execution Time vs Event Size", fontsize=14, fontweight="bold")
+    plt.xlabel("Number of Hits in Event", fontsize=12)
+    plt.ylabel("Total Processing Time (seconds)", fontsize=12)
+    plt.yscale("log")
+    plt.grid(True, which="both", ls="--", alpha=0.5)
+    plt.legend(title="Pipeline", bbox_to_anchor=(1.05, 1), loc="upper left")
+    
+    plt.tight_layout()
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    else:
+        plt.show()
+    plt.close()
+
+
+def plot_time_breakdown(df: pd.DataFrame, output_path: str = None):
+    """Plot a stacked bar chart showing the breakdown of time spent in each pipeline stage.
+
+    Args:
+        df: DataFrame containing execution times for Retrieval, Features, and Filter stages.
+        output_path: Optional file path to save the generated figure.
+    """
+    summary = df.groupby("Pipeline")[
+        ["Time_Retrieval_s", "Time_Features_s", "Time_Filter_s"]
+    ].mean().sort_values(by="Time_Retrieval_s")
+
+    ax = summary.plot(
+        kind="bar", 
+        stacked=True, 
+        figsize=(12, 7), 
+        color=["#1f77b4", "#ff7f0e", "#2ca02c"],
+        edgecolor="black"
+    )
+
+    plt.title("Bottleneck Analysis: Average Time Breakdown per Pipeline", fontsize=14, fontweight="bold")
+    plt.xlabel("Pipeline Configuration", fontsize=12)
+    plt.ylabel("Average Time per Event (seconds)", fontsize=12)
+    
+    plt.legend(
+        ["Retrieval (kNN/ANN)", "Feature Engineering", "Filtering (ML/Cuts)"], 
+        title="Pipeline Stage",
+        bbox_to_anchor=(1.05, 1), loc="upper left"
+    )
+    plt.xticks(rotation=45, ha="right")
+    
+    plt.tight_layout()
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    else:
+        plt.show()
+    plt.close()
+
+
+def plot_purity_vs_efficiency(df: pd.DataFrame, output_path: str = None):
+    """Plot the trade-off between Purity (Precision) and Efficiency (Recall).
+
+    Args:
+        df: DataFrame containing 'Efficiency', 'Purity', and 'Pipeline'.
+        output_path: Optional file path to save the generated figure.
+    """
+    summary_df = df.groupby("Pipeline").agg(
+        Purity_Mean=("Purity", "mean"),
+        Efficiency_Mean=("Efficiency", "mean")
+    ).reset_index()
+
+    plt.figure(figsize=(10, 8))
+
+    sns.scatterplot(
+        data=summary_df, 
+        x="Efficiency_Mean", 
+        y="Purity_Mean", 
+        hue="Pipeline", 
+        s=400, 
+        edgecolor="black", 
+        linewidth=1.5,
+        marker="D"
+    )
+
+    plt.title("Physics Quality Trade-off: Purity vs Efficiency", fontsize=14, fontweight="bold")
+    plt.xlabel("Efficiency (Recall)", fontsize=12)
+    plt.ylabel("Purity (Precision)", fontsize=12)
+    
+    plt.xlim(0, 1.05)
+    plt.ylim(0, 1.05)
+    plt.grid(True, linestyle="--", alpha=0.6)
+    plt.legend(title="Pipeline (Mean values)", bbox_to_anchor=(1.05, 1), loc="upper left")
+    
+    plt.tight_layout()
+    if output_path:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
     else:
         plt.show()
     plt.close()
