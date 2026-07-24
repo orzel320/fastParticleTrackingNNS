@@ -3,6 +3,7 @@
 data/
 
 *.pdf
+*.png
 
 __pycache__/
 

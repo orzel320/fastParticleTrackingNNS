@@ -54,10 +54,10 @@ def plot_3d_hits(dataset: TrackDataset, output_path: str = None):
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path)
-    else:
-        plt.show()
-    plt.close(figure)
+                plt.savefig(output_path, bbox_inches="tight")
+            
+    plt.show()
+    plt.close()
 
 
 def plot_distance_distributions(dataset: TrackDataset, output_path: str = None, sample_size: int = 2000):
@@ -108,10 +108,10 @@ def plot_distance_distributions(dataset: TrackDataset, output_path: str = None, 
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path)
-    else:
-        plt.show()
-    plt.close(figure)
+            plt.savefig(output_path, bbox_inches="tight")
+        
+    plt.show()
+    plt.close()
 
 
 def plot_pareto_frontier(df: pd.DataFrame, title: str = "Pareto Frontier", output_path: str = None):
@@ -158,9 +158,9 @@ def plot_pareto_frontier(df: pd.DataFrame, title: str = "Pareto Frontier", outpu
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path)
-    else:
-        plt.show()
+            plt.savefig(output_path, bbox_inches="tight")
+        
+    plt.show()
     plt.close()
 
 
@@ -211,9 +211,9 @@ def plot_scaling(
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path)
-    else:
-        plt.show()
+        plt.savefig(output_path, bbox_inches="tight")
+    
+    plt.show()
     plt.close()
 
 
@@ -250,10 +250,10 @@ def plot_roc_curves(models_dict: dict, test_dataset: TrackDataset, output_path: 
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path)
-    else:
-        plt.show()
-    plt.close(figure)
+        plt.savefig(output_path, bbox_inches="tight")
+    
+    plt.show()
+    plt.close()
 
 
 def plot_pr_curves(models_dict: dict, test_dataset: TrackDataset, output_path: str = None):
@@ -293,10 +293,10 @@ def plot_pr_curves(models_dict: dict, test_dataset: TrackDataset, output_path: s
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path)
-    else:
-        plt.show()
-    plt.close(figure)
+        plt.savefig(output_path, bbox_inches="tight")
+    
+    plt.show()
+    plt.close()
 
 
 def plot_metric_dimension_heatmap(
@@ -365,8 +365,8 @@ def plot_metric_dimension_heatmap(
 
     if output_path:
         plt.savefig(output_path, bbox_inches="tight")
-    else:
-        plt.show()
+    
+    plt.show()
     plt.close()
 
 
@@ -424,9 +424,9 @@ def plot_metric_lines_by_dimension(
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path, bbox_inches="tight")
-    else:
-        plt.show()
+        plt.savefig(output_path, bbox_inches="tight") # DPI nie jest wymagane dla PDF, bo to wektory
+    
+    plt.show()
     plt.close()
 
 def plot_silver_bullet(df: pd.DataFrame, output_path: str = None):
@@ -491,9 +491,9 @@ def plot_silver_bullet(df: pd.DataFrame, output_path: str = None):
     sns.move_legend(g, "center left", bbox_to_anchor=(1.02, 0.5), title="Pipeline (X = Mean)")
 
     if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+        plt.savefig(output_path, bbox_inches="tight") # DPI nie jest wymagane dla PDF, bo to wektory
+    
+    plt.show()
     plt.close()
 
 def plot_time_vs_size(df: pd.DataFrame, output_path: str = None):
@@ -524,9 +524,9 @@ def plot_time_vs_size(df: pd.DataFrame, output_path: str = None):
     
     plt.tight_layout()
     if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+        plt.savefig(output_path, bbox_inches="tight") # DPI nie jest wymagane dla PDF, bo to wektory
+    
+    plt.show()
     plt.close()
 
 
@@ -562,9 +562,9 @@ def plot_time_breakdown(df: pd.DataFrame, output_path: str = None):
     
     plt.tight_layout()
     if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+        plt.savefig(output_path, bbox_inches="tight")
+    
+    plt.show()
     plt.close()
 
 
@@ -604,7 +604,7 @@ def plot_purity_vs_efficiency(df: pd.DataFrame, output_path: str = None):
     
     plt.tight_layout()
     if output_path:
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+        plt.savefig(output_path, bbox_inches="tight")
+    
+    plt.show()
     plt.close()
