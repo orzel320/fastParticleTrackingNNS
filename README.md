@@ -1,5 +1,22 @@
 # fastParticleTrackingNNS
 
+## O projekcie
+To repozytorium jest poświęcone badaniu algorytmów **przybliżonego wyszukiwania najbliższych sąsiadów (ANN)** oraz **uczenia maszynowego (ML)** do rozwiązywania problemu rekonstrukcji torów cząstek w fizyce wysokich energii (High Energy Physics, HEP).
+
+Tradycyjne algorytmy śledzenia (np. kombinatoryczny filtr Kalmana) słabo skalują się przy dużej gęstości cząstek (pile-up). Ten projekt proponuje alternatywny pipeline: sprowadzenie problemu do wyszukiwania na grafach z późniejszym filtrowaniem fałszywych połączeń.
+
+## 🛠 Jak to działa (Pipeline)
+Proces podzielony jest na kilka kluczowych etapów:
+1. **Generowanie grafu kandydatów (NNS):** Przestrzeń hitów (punktów pozostawionych przez cząstki w detektorze) jest skanowana za pomocą szybkich algorytmów ANN (FAISS, HNSW, cKDTree). Pozwala to w ułamku sekundy połączyć sąsiadujące hity i zbudować pierwotny graf możliwych torów, unikając kwadratowej złożoności pełnego przeglądu ($O(N^2)$).
+2. **Ekstrakcja cech (Feature Engineering):** Dla każdej pary połączonych hitów obliczane są cechy geometryczne i fizyczne.
+3. **Filtrowanie połączeń (ML Classification):** Zbudowane krawędzie są klasyfikowane jako prawdziwe (należące do jednego toru) lub fałszywe (przypadkowy szum) za pomocą modeli uczenia maszynowego opartych na zespołach (`XGBoost`, `LightGBM`, `Random Forest`).
+
+## 📊 Cele benchmarkingu
+W ramach projektu badany jest kompromis pomiędzy szybkością a dokładnością (Recall vs. QPS):
+* Porównanie dokładnych algorytmów (Exact kNN) i metod przybliżonych (IVFFlat, IVFPQ, HNSW) na architekturach CPU i GPU.
+* Ocena wpływu wymiarowości przestrzeni (w tym po zastosowaniu PCA) na jakość wyszukiwania sąsiadów.
+
+
 Szybkie wyszukiwanie sąsiadów (k-NN / ANN) i klasyfikacja par hitów w rekonstrukcji torów
 cząstek (LHC). Projekt syntetyzuje dane detektora, porównuje dokładne i przybliżone metody
 wyszukiwania najbliższych sąsiadów (scipy/sklearn/FAISS/HNSW, CPU i GPU), a następnie uczy
