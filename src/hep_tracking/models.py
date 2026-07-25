@@ -57,6 +57,45 @@ def is_gpu_available() -> bool:
     return _GPU_AVAILABLE
 
 
+def filter_gpu_configs(configs: list, verbose: bool = True) -> list:
+    """Drop model configs that explicitly require GPU (`use_gpu=True`) if none is available.
+
+    Intended for notebooks/cells whose whole point is an intentional CPU vs GPU
+    comparison (e.g. crossover-N experiments), where `use_gpu=True` configs are
+    deliberate and must NOT be silently downgraded to CPU (that would make the
+    comparison meaningless). On a machine without a working GPU, this instead
+    removes those specific configs up-front (with a clear message) so the rest
+    of the notebook still runs to completion on whatever CPU-only configs remain,
+    rather than crashing deep inside the benchmark loop.
+
+    Args:
+        configs: A list of `KNNModelConfig` (or similar) objects, each with a
+            `.model_kwargs` dict that may contain a `use_gpu` key.
+        verbose: If True, prints which configs (if any) were skipped.
+
+    Returns:
+        A new list with any `use_gpu=True` configs removed if no GPU is
+        available; otherwise the original list unchanged.
+    """
+    if is_gpu_available():
+        return configs
+
+    kept, skipped = [], []
+    for cfg in configs:
+        if cfg.model_kwargs.get("use_gpu") is True:
+            skipped.append(cfg.name)
+        else:
+            kept.append(cfg)
+
+    if verbose and skipped:
+        print(
+            f"[GPU niedostępne] Pomijam {len(skipped)} konfiguracji wymagających GPU: "
+            f"{', '.join(skipped)}. Reszta eksperymentu uruchomi się normalnie na CPU."
+        )
+
+    return kept
+
+
 def _resolve_use_gpu(requested: bool | None) -> bool:
     """Resolve the effective use_gpu flag for a retriever.
 
