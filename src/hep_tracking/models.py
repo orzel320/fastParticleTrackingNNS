@@ -14,7 +14,79 @@ import hnswlib
 from scipy.spatial import cKDTree
 from sklearn.neighbors import NearestNeighbors
 
-_GPU_RES = faiss.StandardGpuResources()
+_GPU_RES = None
+_GPU_AVAILABLE = None
+
+
+def _get_gpu_resources():
+    """Lazily create (and cache) the shared FAISS GPU resources handle.
+
+    This is created on first use rather than at module import time, so that
+    importing `hep_tracking.models` (e.g. for the CPU-only `ScipyCKDTree`,
+    used by `generate_candidates.py` and the test suite) does not require a
+    GPU / CUDA runtime to be present on the machine.
+
+    Returns:
+        The process-wide `faiss.StandardGpuResources` instance.
+    """
+    global _GPU_RES
+    if _GPU_RES is None:
+        _GPU_RES = faiss.StandardGpuResources()
+    return _GPU_RES
+
+
+def is_gpu_available() -> bool:
+    """Check whether a working FAISS GPU backend is available on this machine.
+
+    The result is cached after the first call, since the underlying check
+    (allocating GPU resources) is relatively expensive and the answer cannot
+    change during the lifetime of the process.
+
+    Returns:
+        True if at least one CUDA GPU is visible to FAISS, False otherwise
+        (e.g. no GPU present, no CUDA driver, or a CPU-only `faiss-cpu`
+        install with no GPU support compiled in).
+    """
+    global _GPU_AVAILABLE
+    if _GPU_AVAILABLE is None:
+        try:
+            _GPU_AVAILABLE = faiss.get_num_gpus() > 0
+        except AttributeError:
+            # faiss-cpu builds don't expose get_num_gpus at all.
+            _GPU_AVAILABLE = False
+    return _GPU_AVAILABLE
+
+
+def _resolve_use_gpu(requested: bool | None) -> bool:
+    """Resolve the effective use_gpu flag for a retriever.
+
+    Args:
+        requested: The `use_gpu` value passed by the caller.
+            - `None` (default): auto-detect - use GPU if one is available,
+              otherwise silently fall back to CPU. This is the recommended
+              setting for "just works on whatever machine this runs on".
+            - `True`: explicitly require GPU. Raises immediately with a clear
+              message if no GPU is available, instead of failing later with
+              a confusing FAISS/CUDA error.
+            - `False`: explicitly force CPU, even if a GPU is available.
+
+    Returns:
+        The concrete boolean to actually use.
+
+    Raises:
+        RuntimeError: If `requested=True` but no usable GPU was detected.
+    """
+    if requested is None:
+        return is_gpu_available()
+    if requested and not is_gpu_available():
+        raise RuntimeError(
+            "use_gpu=True zostało zażądane, ale nie wykryto działającego GPU "
+            "(FAISS zgłasza 0 dostępnych urządzeń CUDA). Zainstaluj GPU-owe "
+            "zależności przez `pip install -e \".[gpu]\"` i upewnij się, że "
+            "sterownik CUDA jest poprawnie zainstalowany, albo pozostaw "
+            "domyślne use_gpu=None (auto-detekcja) / use_gpu=False (wymuś CPU)."
+        )
+    return requested
 
 
 class BaseKNN(ABC):
@@ -220,14 +292,16 @@ class FaissExact(BaseKNN):
         use_gpu: Indicates whether the index is transferred to the GPU.
         index: The underlying FAISS index object.
     """
-    def __init__(self, use_gpu: bool = False):
+    def __init__(self, use_gpu: bool | None = None):
         """Initialize the exact FAISS index.
 
         Args:
-            use_gpu: If True, uses the standard GPU resources for evaluation. 
-                Defaults to False.
+            use_gpu: If True, uses the standard GPU resources for evaluation.
+                If False, always uses CPU. If None (default), auto-detects:
+                uses GPU when one is available, otherwise falls back to CPU
+                transparently.
         """
-        self.use_gpu = use_gpu
+        self.use_gpu = _resolve_use_gpu(use_gpu)
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -239,7 +313,7 @@ class FaissExact(BaseKNN):
         features_contig = np.ascontiguousarray(X, dtype=np.float32)
         cpu_index = faiss.IndexFlatL2(features_contig.shape[1])
         if self.use_gpu:
-            self.index = faiss.index_cpu_to_gpu(_GPU_RES, 0, cpu_index)
+            self.index = faiss.index_cpu_to_gpu(_get_gpu_resources(), 0, cpu_index)
         else:
             self.index = cpu_index
         self.index.add(features_contig)
@@ -260,7 +334,7 @@ class FaissExact(BaseKNN):
         features_contig = np.ascontiguousarray(X, dtype=np.float32)
         distances, indices = self.index.search(features_contig, k + 1)
         if self.use_gpu:
-            _GPU_RES.syncDefaultStreamCurrentDevice()
+            _get_gpu_resources().syncDefaultStreamCurrentDevice()
         return distances[:, 1:], indices[:, 1:]
 
 
@@ -273,17 +347,19 @@ class FaissIVFFlat(BaseKNN):
         use_gpu: Indicates whether GPU resources are utilized.
         index: The underlying FAISS index object.
     """
-    def __init__(self, nlist: int = 100, nprobe: int = 1, use_gpu: bool = False):
+    def __init__(self, nlist: int = 100, nprobe: int = 1, use_gpu: bool | None = None):
         """Initialize the IVFFlat FAISS index.
 
         Args:
             nlist: Number of clusters. Defaults to 100.
             nprobe: Number of clusters to visit during query. Defaults to 1.
-            use_gpu: If True, transfers index to the GPU. Defaults to False.
+            use_gpu: If True, transfers index to the GPU. If False, always
+                uses CPU. If None (default), auto-detects: uses GPU when one
+                is available, otherwise falls back to CPU transparently.
         """
         self.nlist = nlist
         self.nprobe = nprobe
-        self.use_gpu = use_gpu
+        self.use_gpu = _resolve_use_gpu(use_gpu)
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -299,7 +375,7 @@ class FaissIVFFlat(BaseKNN):
         cpu_index = faiss.IndexIVFFlat(quantizer, dimension, self.nlist, faiss.METRIC_L2)
 
         if self.use_gpu:
-            self.index = faiss.index_cpu_to_gpu(_GPU_RES, 0, cpu_index)
+            self.index = faiss.index_cpu_to_gpu(_get_gpu_resources(), 0, cpu_index)
         else:
             self.index = cpu_index
 
@@ -321,7 +397,7 @@ class FaissIVFFlat(BaseKNN):
         distances, indices = self.index.search(features_contig, k + 1)
 
         if self.use_gpu:
-            _GPU_RES.syncDefaultStreamCurrentDevice()
+            _get_gpu_resources().syncDefaultStreamCurrentDevice()
 
         return distances[:, 1:], indices[:, 1:]
 
@@ -339,7 +415,7 @@ class FaissIVFPQ(BaseKNN):
         use_gpu: Indicates whether GPU resources are utilized.
         index: The underlying FAISS index object.
     """
-    def __init__(self, nlist: int = 100, m: int = 5, nbits: int = 8, nprobe: int = 1, use_gpu: bool = False):
+    def __init__(self, nlist: int = 100, m: int = 5, nbits: int = 8, nprobe: int = 1, use_gpu: bool | None = None):
         """Initialize the IVFPQ FAISS index.
 
         Args:
@@ -347,13 +423,15 @@ class FaissIVFPQ(BaseKNN):
             m: Number of sub-quantizers. Must divide the dimension space evenly. Defaults to 5.
             nbits: Bits allocated per sub-quantizer. Defaults to 8.
             nprobe: Number of clusters to probe during search. Defaults to 1.
-            use_gpu: If True, uses GPU acceleration. Defaults to False.
+            use_gpu: If True, uses GPU acceleration. If False, always uses
+                CPU. If None (default), auto-detects: uses GPU when one is
+                available, otherwise falls back to CPU transparently.
         """
         self.nlist = nlist
         self.m = m
         self.nbits = nbits
         self.nprobe = nprobe
-        self.use_gpu = use_gpu
+        self.use_gpu = _resolve_use_gpu(use_gpu)
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -375,7 +453,7 @@ class FaissIVFPQ(BaseKNN):
         cpu_index = faiss.IndexIVFPQ(quantizer, dimension, self.nlist, self.m, self.nbits)
 
         if self.use_gpu:
-            self.index = faiss.index_cpu_to_gpu(_GPU_RES, 0, cpu_index)
+            self.index = faiss.index_cpu_to_gpu(_get_gpu_resources(), 0, cpu_index)
         else:
             self.index = cpu_index
 
@@ -397,7 +475,7 @@ class FaissIVFPQ(BaseKNN):
         distances, indices = self.index.search(features_contig, k + 1)
 
         if self.use_gpu:
-            _GPU_RES.syncDefaultStreamCurrentDevice()
+            _get_gpu_resources().syncDefaultStreamCurrentDevice()
 
         return distances[:, 1:], indices[:, 1:]
 
