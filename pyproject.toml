@@ -14,9 +14,8 @@ dependencies = [
     "scikit-learn",
     "matplotlib",
     "tqdm",
-    "cupy",
     "hnswlib",
-    "faiss-gpu",
+    "faiss-cpu",
     "ipykernel",
     "xgboost",
     "lightgbm",
@@ -30,6 +29,17 @@ dev = [
     "black",
     "isort",
     "jupyter"
+]
+# Opcjonalne - wymaga karty NVIDIA i zainstalowanego CUDA Toolkit.
+# Zainstaluj TYLKO jeśli masz dostępne GPU: pip install -e ".[gpu]"
+# Uwaga: cupy wymaga wersji dopasowanej do Twojego CUDA (np. cupy-cuda12x),
+# zobacz https://docs.cupy.dev/en/stable/install.html - podana tu nazwa
+# "cupy" spróbuje budować się ze źródeł bez wskazania wersji.
+# faiss-gpu bywa niestabilne przez pip - w razie problemów zainstaluj przez
+# conda: conda install -c pytorch -c nvidia faiss-gpu
+gpu = [
+    "cupy-cuda12x",
+    "faiss-gpu",
 ]
 
 [tool.pytest.ini_options]
