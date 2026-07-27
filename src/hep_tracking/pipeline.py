@@ -233,7 +233,6 @@ class PipelineEvaluator:
             return t_retrieval, t_features, t_filter, query_idx_filtered, neighbor_idx_filtered, pass_ml
 
         for _ in range(self.warmup_runs):
-            print("Warmup")
             _execute()
 
         total_t_retrieval = 0.0
@@ -241,7 +240,6 @@ class PipelineEvaluator:
         total_t_filter = 0.0
         
         for _ in range(self.num_runs):
-            print("run" + _)
             t_ret, t_feat, t_filt, query_idx, neighbor_idx, pass_ml = _execute()
             total_t_retrieval += t_ret
             total_t_features += t_feat
