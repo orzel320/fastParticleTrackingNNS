@@ -57,7 +57,6 @@ def is_gpu_available() -> bool:
         try:
             _GPU_AVAILABLE = faiss.get_num_gpus() > 0
         except AttributeError:
-            # faiss-cpu builds don't expose get_num_gpus at all.
             _GPU_AVAILABLE = False
     return _GPU_AVAILABLE
 

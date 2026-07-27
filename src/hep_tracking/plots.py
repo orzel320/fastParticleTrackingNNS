@@ -424,7 +424,7 @@ def plot_metric_lines_by_dimension(
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path, bbox_inches="tight") # DPI nie jest wymagane dla PDF, bo to wektory
+        plt.savefig(output_path, bbox_inches="tight")
     
     plt.show()
     plt.close()
@@ -491,7 +491,7 @@ def plot_silver_bullet(df: pd.DataFrame, output_path: str = None):
     sns.move_legend(g, "center left", bbox_to_anchor=(1.02, 0.5), title="Pipeline (X = Mean)")
 
     if output_path:
-        plt.savefig(output_path, bbox_inches="tight") # DPI nie jest wymagane dla PDF, bo to wektory
+        plt.savefig(output_path, bbox_inches="tight")
     
     plt.show()
     plt.close()
@@ -516,7 +516,6 @@ def plot_time_vs_size(df: pd.DataFrame, output_path: str = None):
     
     summary = plot_df.groupby(["Pipeline", "Total_Size"])["Time_Total_s"].sum().reset_index()
 
-    # 4. Generowanie wykresu
     plt.figure(figsize=(10, 6))
     
     sns.lineplot(
