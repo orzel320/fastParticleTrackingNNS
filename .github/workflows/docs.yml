@@ -33,7 +33,7 @@ jobs:
 
       - name: Generate API documentation (apidoc)
         run: |
-          python -m sphinx.ext.apidoc -o docs/source/ ./hep_tracking
+          python -m sphinx.ext.apidoc -o docs/source/ ./src/hep_tracking
 
       - name: Build HTML documentation
         run: |
