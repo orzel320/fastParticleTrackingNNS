@@ -1,26 +1,25 @@
 """Wrappers for exact and approximate nearest neighbor (ANN) search algorithms.
 
-This module provides a unified interface for evaluating various nearest neighbor 
-implementations, including brute-force matrix operations (NumPy/CuPy), tree-based 
+This module provides a unified interface for evaluating various nearest neighbor
+implementations, including brute-force matrix operations (NumPy/CuPy), tree-based
 methods (SciPy/Scikit-learn), and highly optimized ANN libraries (FAISS/HNSWlib).
 """
 
 from abc import ABC, abstractmethod
 from typing import Literal
 
-import numpy as np
+import faiss
 import hnswlib
+import numpy as np
 from scipy.spatial import cKDTree
 from sklearn.neighbors import NearestNeighbors
 
-import faiss
-if hasattr(faiss, 'StandardGpuResources'):
+if hasattr(faiss, "StandardGpuResources"):
     _GPU_RES = faiss.StandardGpuResources()
     HAS_FAISS_GPU = True
 else:
     _GPU_RES = None
     HAS_FAISS_GPU = False
-
 
 
 def _get_gpu_resources():
@@ -125,7 +124,7 @@ def _resolve_use_gpu(requested: bool | None) -> bool:
         raise RuntimeError(
             "use_gpu=True zostało zażądane, ale nie wykryto działającego GPU "
             "(FAISS zgłasza 0 dostępnych urządzeń CUDA). Zainstaluj GPU-owe "
-            "zależności przez `pip install -e \".[gpu]\"` i upewnij się, że "
+            'zależności przez `pip install -e ".[gpu]"` i upewnij się, że '
             "sterownik CUDA jest poprawnie zainstalowany, albo pozostaw "
             "domyślne use_gpu=None (auto-detekcja) / use_gpu=False (wymuś CPU)."
         )
@@ -163,19 +162,20 @@ class BaseKNN(ABC):
 class NumpyBruteForce(BaseKNN):
     """Exact nearest neighbor search using batched NumPy matrix operations.
 
-    This implementation computes pairwise distances manually. To prevent memory 
+    This implementation computes pairwise distances manually. To prevent memory
     overflows on large datasets, queries are processed in chunks.
 
     Attributes:
-        max_mem_bytes: Maximum memory footprint allocated for the distance 
+        max_mem_bytes: Maximum memory footprint allocated for the distance
             computation block.
         X_train: The indexed dataset stored in memory.
     """
+
     def __init__(self, max_mem_bytes: int = 512 * 1024 * 1024):
         """Initialize the NumPy brute-force index.
 
         Args:
-            max_mem_bytes: Limit for internal memory allocations during queries. 
+            max_mem_bytes: Limit for internal memory allocations during queries.
                 Defaults to 512 MB.
         """
         self.max_mem_bytes = max_mem_bytes
@@ -201,7 +201,7 @@ class NumpyBruteForce(BaseKNN):
         """
         n_samples = X.shape[0]
         n_train = self.X_train.shape[0]
-        
+
         squared_norms_train = np.sum(self.X_train * self.X_train, axis=1)
         squared_norms_query = np.sum(X * X, axis=1)
 
@@ -239,17 +239,18 @@ class NumpyBruteForce(BaseKNN):
 
 try:
     import cupy as cp
-    
+
     class CuPyBruteForce(BaseKNN):
         """Exact nearest neighbor search using batched CuPy matrix operations on GPU.
 
-        Behaves identically to NumpyBruteForce but utilizes GPU acceleration 
+        Behaves identically to NumpyBruteForce but utilizes GPU acceleration
         and explicitly manages the CuPy memory pool to prevent VRAM exhaustion.
 
         Attributes:
             max_vram_bytes: Limit for VRAM allocations during chunked queries.
             X_train: The indexed dataset stored in GPU memory.
         """
+
         def __init__(self, max_vram_bytes: int = 512 * 1024 * 1024):
             """Initialize the CuPy brute-force index.
 
@@ -331,12 +332,13 @@ except ImportError:
 
 class FaissExact(BaseKNN):
     """Exact L2 nearest neighbor search using FAISS (IndexFlatL2).
-    
+
     Attributes:
         use_gpu: Indicates whether the index is transferred to the GPU.
         index: The underlying FAISS index object.
     """
-    def __init__(self, use_gpu: bool | None = None):
+
+    def __init__(self, use_gpu: bool | None = None, metric: str = "L2"):
         """Initialize the exact FAISS index.
 
         Args:
@@ -344,8 +346,10 @@ class FaissExact(BaseKNN):
                 If False, always uses CPU. If None (default), auto-detects:
                 uses GPU when one is available, otherwise falls back to CPU
                 transparently.
+            metric: The distance metric ("L2" for Euclidean, "IP" for Inner Product)
         """
         self.use_gpu = use_gpu if HAS_FAISS_GPU else False
+        self.metric = metric.upper()
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -355,7 +359,13 @@ class FaissExact(BaseKNN):
             X: Feature matrix to index.
         """
         features_contig = np.ascontiguousarray(X, dtype=np.float32)
-        cpu_index = faiss.IndexFlatL2(features_contig.shape[1])
+        dimension = features_contig.shape[1]
+
+        if self.metric == "IP":
+            cpu_index = faiss.IndexFlatIP(dimension)
+        else:
+            cpu_index = faiss.IndexFlatL2(dimension)
+
         if self.use_gpu:
             self.index = faiss.index_cpu_to_gpu(_get_gpu_resources(), 0, cpu_index)
         else:
@@ -365,7 +375,7 @@ class FaissExact(BaseKNN):
     def kneighbors(self, X: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
         """Query the FAISS FlatL2 index.
 
-        Retrieves `k + 1` neighbors and discards the first one (the point itself) 
+        Retrieves `k + 1` neighbors and discards the first one (the point itself)
         to ensure proper distance matrices.
 
         Args:
@@ -391,7 +401,14 @@ class FaissIVFFlat(BaseKNN):
         use_gpu: Indicates whether GPU resources are utilized.
         index: The underlying FAISS index object.
     """
-    def __init__(self, nlist: int = 100, nprobe: int = 1, use_gpu: bool | None = None):
+
+    def __init__(
+        self,
+        nlist: int = 100,
+        nprobe: int = 1,
+        use_gpu: bool | None = None,
+        metric: str = "L2",
+    ):
         """Initialize the IVFFlat FAISS index.
 
         Args:
@@ -400,10 +417,12 @@ class FaissIVFFlat(BaseKNN):
             use_gpu: If True, transfers index to the GPU. If False, always
                 uses CPU. If None (default), auto-detects: uses GPU when one
                 is available, otherwise falls back to CPU transparently.
+            metric: The distance metric ("L2" or "IP")
         """
         self.nlist = nlist
         self.nprobe = nprobe
         self.use_gpu = use_gpu if HAS_FAISS_GPU else False
+        self.metric = metric.upper()
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -415,8 +434,14 @@ class FaissIVFFlat(BaseKNN):
         features_contig = np.ascontiguousarray(X, dtype=np.float32)
         dimension = features_contig.shape[1]
 
-        quantizer = faiss.IndexFlatL2(dimension)
-        cpu_index = faiss.IndexIVFFlat(quantizer, dimension, self.nlist, faiss.METRIC_L2)
+        if self.metric == "IP":
+            quantizer = faiss.IndexFlatIP(dimension)
+            faiss_metric = faiss.METRIC_INNER_PRODUCT
+        else:
+            quantizer = faiss.IndexFlatL2(dimension)
+            faiss_metric = faiss.METRIC_L2
+
+        cpu_index = faiss.IndexIVFFlat(quantizer, dimension, self.nlist, faiss_metric)
 
         if self.use_gpu:
             self.index = faiss.index_cpu_to_gpu(_get_gpu_resources(), 0, cpu_index)
@@ -450,16 +475,26 @@ class FaissIVFPQ(BaseKNN):
     """Approximate search using FAISS IVF with Product Quantization (IndexIVFPQ).
 
     Compresses vectors into codes to optimize search speed and memory usage.
-    
+
     Attributes:
         nlist: Number of Voronoi cells (clusters).
         m: Number of sub-vectors for product quantization.
         nbits: Number of bits per sub-vector index.
         nprobe: Number of clusters to visit during query.
         use_gpu: Indicates whether GPU resources are utilized.
+        metric: Distance metric to use ("L2" or "IP").
         index: The underlying FAISS index object.
     """
-    def __init__(self, nlist: int = 100, m: int = 5, nbits: int = 8, nprobe: int = 1, use_gpu: bool | None = None):
+
+    def __init__(
+        self,
+        nlist: int = 100,
+        m: int = 5,
+        nbits: int = 8,
+        nprobe: int = 1,
+        use_gpu: bool | None = None,
+        metric: str = "L2",
+    ):
         """Initialize the IVFPQ FAISS index.
 
         Args:
@@ -470,12 +505,14 @@ class FaissIVFPQ(BaseKNN):
             use_gpu: If True, uses GPU acceleration. If False, always uses
                 CPU. If None (default), auto-detects: uses GPU when one is
                 available, otherwise falls back to CPU transparently.
+            metric: Distance metric to use ("L2" or "IP").
         """
         self.nlist = nlist
         self.m = m
         self.nbits = nbits
         self.nprobe = nprobe
         self.use_gpu = use_gpu if HAS_FAISS_GPU else False
+        self.metric = metric.upper()
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -491,10 +528,20 @@ class FaissIVFPQ(BaseKNN):
         dimension = features_contig.shape[1]
 
         if dimension % self.m != 0:
-            raise ValueError(f"Wymiar przestrzeni ({dimension}) musi byÄ‡ podzielny przez m ({self.m}).")
+            raise ValueError(
+                f"Wymiar przestrzeni ({dimension}) musi byÄ‡ podzielny przez m ({self.m})."
+            )
 
-        quantizer = faiss.IndexFlatL2(dimension)
-        cpu_index = faiss.IndexIVFPQ(quantizer, dimension, self.nlist, self.m, self.nbits)
+        if self.metric == "IP":
+            quantizer = faiss.IndexFlatIP(dimension)
+            faiss_metric = faiss.METRIC_INNER_PRODUCT
+        else:
+            quantizer = faiss.IndexFlatL2(dimension)
+            faiss_metric = faiss.METRIC_L2
+
+        cpu_index = faiss.IndexIVFPQ(
+            quantizer, dimension, self.nlist, self.m, self.nbits, faiss_metric
+        )
 
         if self.use_gpu:
             self.index = faiss.index_cpu_to_gpu(_get_gpu_resources(), 0, cpu_index)
@@ -526,7 +573,7 @@ class FaissIVFPQ(BaseKNN):
 
 class HnswGraph(BaseKNN):
     """Approximate nearest neighbor search using HNSW (Hierarchical Navigable Small World) graphs.
-    
+
     Attributes:
         m: Number of bi-directional links created for every new element.
         ef_construction: Size of the dynamic list for the nearest neighbors during index creation.
@@ -534,7 +581,15 @@ class HnswGraph(BaseKNN):
         num_threads: Number of threads used by hnswlib. Defaults to -1 (all available).
         index: The underlying hnswlib index object.
     """
-    def __init__(self, m: int = 16, ef_construction: int = 200, ef: int = 50, num_threads: int = -1):
+
+    def __init__(
+        self,
+        m: int = 16,
+        ef_construction: int = 200,
+        ef: int = 50,
+        num_threads: int = -1,
+        space: str = "l2",
+    ):
         """Initialize the HNSW index.
 
         Args:
@@ -542,11 +597,13 @@ class HnswGraph(BaseKNN):
             ef_construction: Search depth during index build. Defaults to 200.
             ef: Search depth during query. Defaults to 50.
             num_threads: Number of CPU threads to utilize. Defaults to -1.
+            space: The metric space to use ("l2", "ip", or "cosine"). Defaults to "l2".
         """
         self.m = m
         self.ef_construction = ef_construction
         self.ef = ef
         self.num_threads = num_threads
+        self.space = space.lower()
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -558,8 +615,10 @@ class HnswGraph(BaseKNN):
         features_contig = np.ascontiguousarray(X, dtype=np.float32)
         n_samples, dimension = features_contig.shape
 
-        self.index = hnswlib.Index(space="l2", dim=dimension)
-        self.index.init_index(max_elements=n_samples, ef_construction=self.ef_construction, M=self.m)
+        self.index = hnswlib.Index(space=self.space, dim=dimension)
+        self.index.init_index(
+            max_elements=n_samples, ef_construction=self.ef_construction, M=self.m
+        )
         self.index.set_num_threads(self.num_threads)
         self.index.add_items(features_contig)
         self.index.set_ef(self.ef)
@@ -582,18 +641,23 @@ class HnswGraph(BaseKNN):
 
 class ScipyCKDTree(BaseKNN):
     """Exact nearest neighbor search using SciPy's cKDTree implementation.
-    
+
     Attributes:
         workers: Number of threads used during querying. Defaults to -1 (all available).
         tree: The underlying SciPy cKDTree object.
     """
-    def __init__(self, workers: int = -1):
+
+    def __init__(self, workers: int = -1, eps: float = 0.0):
         """Initialize the cKDTree wrapper.
 
         Args:
             workers: Number of worker threads for parallel queries. Defaults to -1.
+            eps: Return approximate nearest neighbors; the k-th returned value
+                is guaranteed to be no further than (1 + eps) times the
+                distance to the real k-th nearest neighbor. Defaults to 0.0.
         """
         self.workers = workers
+        self.eps = eps
         self.tree = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -614,7 +678,9 @@ class ScipyCKDTree(BaseKNN):
         Returns:
             A tuple of (distances, indices) to the nearest neighbors.
         """
-        distances, indices = self.tree.query(X, k=k + 1, workers=self.workers)
+        distances, indices = self.tree.query(
+            X, k=k + 1, workers=self.workers, eps=self.eps
+        )
         return distances[:, 1:].astype(np.float32), indices[:, 1:]
 
 
@@ -627,7 +693,13 @@ class SklearnKNN(BaseKNN):
         n_jobs: Number of parallel jobs used for querying.
         nn: The underlying scikit-learn NearestNeighbors estimator.
     """
-    def __init__(self, algorithm: Literal["kd_tree", "ball_tree"] = "kd_tree", leaf_size: int = 100, n_jobs: int = -1):
+
+    def __init__(
+        self,
+        algorithm: Literal["kd_tree", "ball_tree"] = "kd_tree",
+        leaf_size: int = 100,
+        n_jobs: int = -1,
+    ):
         """Initialize the Scikit-learn KNN wrapper.
 
         Args:
@@ -647,10 +719,10 @@ class SklearnKNN(BaseKNN):
             X: Feature matrix to index.
         """
         self.nn = NearestNeighbors(
-            n_neighbors=1, 
-            algorithm=self.algorithm, 
-            leaf_size=self.leaf_size, 
-            n_jobs=self.n_jobs
+            n_neighbors=1,
+            algorithm=self.algorithm,
+            leaf_size=self.leaf_size,
+            n_jobs=self.n_jobs,
         )
         self.nn.fit(X)
 

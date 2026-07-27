@@ -1,4 +1,5 @@
 import numpy as np
+
 from hep_tracking.config import TrackSimulationConfig
 from hep_tracking.data import generate_tracks
 
@@ -38,8 +39,12 @@ def test_generate_tracks_determinism():
     """Validates that the random seed guarantees exact reproducibility of the dataset."""
     config = _default_config(seed=123)
 
-    features_run_one, labels_run_one = generate_tracks(n_tracks=50, n_noise=10, config=config)
-    features_run_two, labels_run_two = generate_tracks(n_tracks=50, n_noise=10, config=config)
+    features_run_one, labels_run_one = generate_tracks(
+        n_tracks=50, n_noise=10, config=config
+    )
+    features_run_two, labels_run_two = generate_tracks(
+        n_tracks=50, n_noise=10, config=config
+    )
 
     assert np.allclose(features_run_one, features_run_two)
     assert np.array_equal(labels_run_one, labels_run_two)

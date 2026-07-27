@@ -1,6 +1,7 @@
 """Dataset abstraction layer for high-energy physics tracking data."""
 
 from pathlib import Path
+
 import numpy as np
 
 
@@ -38,11 +39,7 @@ class TrackDataset:
             An instantiated `TrackDataset` initialized with the loaded arrays.
         """
         data = np.load(file_path)
-        return cls(
-            X=data["X"],
-            y=data["y"],
-            event_ids=data["event_id"]
-        )
+        return cls(X=data["X"], y=data["y"], event_ids=data["event_id"])
 
     def get_spatial_features(self) -> np.ndarray:
         """Extract spatial coordinates (x, y, z) from the feature matrix.
@@ -55,7 +52,7 @@ class TrackDataset:
     def get_padded_features(self, target_dim: int = 8) -> np.ndarray:
         """Pad the feature matrix with zeros to match a target dimension.
 
-        If the current feature dimension is already greater than or equal to 
+        If the current feature dimension is already greater than or equal to
         `target_dim`, the feature matrix is returned as a contiguous array.
 
         Args:
@@ -65,15 +62,15 @@ class TrackDataset:
             A contiguous float32 array padded with zeros up to `target_dim` columns.
         """
         current_dim = self.X.shape[1]
-        
+
         if current_dim >= target_dim:
             return np.ascontiguousarray(self.X, dtype=np.float32)
-            
+
         pad_width = target_dim - current_dim
-        padded_features = np.pad(self.X, ((0, 0), (0, pad_width)), mode='constant')
-        
+        padded_features = np.pad(self.X, ((0, 0), (0, pad_width)), mode="constant")
+
         return np.ascontiguousarray(padded_features, dtype=np.float32)
-        
+
     def filter_by_event(self, target_event_ids: np.ndarray) -> "TrackDataset":
         """Create a subset dataset containing hits matching target event IDs.
 
@@ -85,9 +82,7 @@ class TrackDataset:
         """
         mask = np.isin(self.event_ids, target_event_ids)
         return TrackDataset(
-            X=self.X[mask],
-            y=self.y[mask],
-            event_ids=self.event_ids[mask]
+            X=self.X[mask], y=self.y[mask], event_ids=self.event_ids[mask]
         )
 
     def __len__(self) -> int:

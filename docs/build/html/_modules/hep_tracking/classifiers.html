@@ -1,0 +1,498 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>hep_tracking.classifiers &mdash; HEP Tracking 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            HEP Tracking
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">HEP Tracking</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">hep_tracking.classifiers</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for hep_tracking.classifiers</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Wrapper classes and evaluation utilities for machine learning classifiers.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">lightgbm</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">lgb</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">xgboost</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">xgb</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.ensemble</span><span class="w"> </span><span class="kn">import</span> <span class="n">RandomForestClassifier</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.model_selection</span><span class="w"> </span><span class="kn">import</span> <span class="n">PredefinedSplit</span><span class="p">,</span> <span class="n">RandomizedSearchCV</span>
+
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">hep_tracking.dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrackDataset</span>
+
+
+<div class="viewcode-block" id="BaseClassifier">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.BaseClassifier">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BaseClassifier</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Abstract base class defining the standard interface for track classifiers.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="BaseClassifier.fit">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.BaseClassifier.fit">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">X_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">y_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">X_val</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">y_val</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Train the classifier model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X_train: Feature matrix for training.</span>
+<span class="sd">            y_train: Target labels for training.</span>
+<span class="sd">            X_val: Optional feature matrix for validation (used for early stopping). Defaults to None.</span>
+<span class="sd">            y_val: Optional target labels for validation. Defaults to None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="BaseClassifier.predict_proba">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.BaseClassifier.predict_proba">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict_proba</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Predict class probabilities for the input features.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: Feature matrix to evaluate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            An array of shape (n_samples, n_classes) containing predicted probabilities.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="BaseClassifier.predict">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.BaseClassifier.predict">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Predict deterministic class labels for the input features.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: Feature matrix to evaluate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            An array of predicted class labels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="RandomForestWrapper">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.RandomForestWrapper">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">RandomForestWrapper</span><span class="p">(</span><span class="n">BaseClassifier</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wrapper for the scikit-learn RandomForestClassifier.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the Random Forest model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            **kwargs: Keyword arguments passed directly to the underlying</span>
+<span class="sd">                RandomForestClassifier instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">RandomForestClassifier</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="RandomForestWrapper.fit">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.RandomForestWrapper.fit">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">X_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">y_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">X_val</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">y_val</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Train the Random Forest model.</span>
+
+<span class="sd">        Note that Random Forest does not utilize early stopping natively, so the</span>
+<span class="sd">        validation arrays (`X_val` and `y_val`) are ignored if provided.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X_train: Feature matrix for training.</span>
+<span class="sd">            y_train: Target labels for training.</span>
+<span class="sd">            X_val: Ignored. Present for interface compatibility.</span>
+<span class="sd">            y_val: Ignored. Present for interface compatibility.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RandomForestWrapper.predict_proba">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.RandomForestWrapper.predict_proba">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict_proba</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Predict class probabilities for the given features.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: Feature matrix to evaluate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Predicted class probabilities.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RandomForestWrapper.predict">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.RandomForestWrapper.predict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Predict discrete class labels for the given features.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: Feature matrix to evaluate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Predicted class labels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="XGBoostWrapper">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.XGBoostWrapper">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">XGBoostWrapper</span><span class="p">(</span><span class="n">BaseClassifier</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wrapper for the XGBoost classifier, supporting validation datasets.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the XGBoost model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            **kwargs: Keyword arguments passed directly to the underlying</span>
+<span class="sd">                XGBClassifier instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">xgb</span><span class="o">.</span><span class="n">XGBClassifier</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="XGBoostWrapper.fit">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.XGBoostWrapper.fit">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">X_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">y_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">X_val</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">y_val</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Train the XGBoost model.</span>
+
+<span class="sd">        If validation data is provided, it is passed to the internal model as an</span>
+<span class="sd">        evaluation set to track performance.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X_train: Feature matrix for training.</span>
+<span class="sd">            y_train: Target labels for training.</span>
+<span class="sd">            X_val: Optional feature matrix for validation.</span>
+<span class="sd">            y_val: Optional target labels for validation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">X_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">y_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">eval_set</span><span class="o">=</span><span class="p">[(</span><span class="n">X_val</span><span class="p">,</span> <span class="n">y_val</span><span class="p">)],</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="XGBoostWrapper.predict_proba">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.XGBoostWrapper.predict_proba">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict_proba</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Predict class probabilities for the given features.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: Feature matrix to evaluate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Predicted class probabilities.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="XGBoostWrapper.predict">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.XGBoostWrapper.predict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Predict discrete class labels for the given features.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: Feature matrix to evaluate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Predicted class labels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="LightGBMWrapper">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.LightGBMWrapper">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LightGBMWrapper</span><span class="p">(</span><span class="n">BaseClassifier</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wrapper for the LightGBM classifier, supporting early stopping and validation.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        early_stopping_rounds: Number of rounds to wait for validation metric</span>
+<span class="sd">            improvement before terminating training early.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">early_stopping_rounds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">15</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the LightGBM model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            early_stopping_rounds: Consecutive rounds without validation metric</span>
+<span class="sd">                improvement needed to trigger early stopping. Defaults to 15.</span>
+<span class="sd">            **kwargs: Keyword arguments passed directly to the underlying</span>
+<span class="sd">                LGBMClassifier instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">early_stopping_rounds</span> <span class="o">=</span> <span class="n">early_stopping_rounds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">lgb</span><span class="o">.</span><span class="n">LGBMClassifier</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="LightGBMWrapper.fit">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.LightGBMWrapper.fit">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">X_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">y_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">X_val</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">y_val</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Train the LightGBM model.</span>
+
+<span class="sd">        If validation data is provided, the early stopping callback is automatically</span>
+<span class="sd">        attached to the training routine to prevent overfitting.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X_train: Feature matrix for training.</span>
+<span class="sd">            y_train: Target labels for training.</span>
+<span class="sd">            X_val: Optional feature matrix for validation.</span>
+<span class="sd">            y_val: Optional target labels for validation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">X_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">y_val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span>
+                <span class="n">X_train</span><span class="p">,</span>
+                <span class="n">y_train</span><span class="p">,</span>
+                <span class="n">eval_X</span><span class="o">=</span><span class="n">X_val</span><span class="p">,</span>
+                <span class="n">eval_y</span><span class="o">=</span><span class="n">y_val</span><span class="p">,</span>
+                <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span>
+                    <span class="n">lgb</span><span class="o">.</span><span class="n">early_stopping</span><span class="p">(</span>
+                        <span class="n">stopping_rounds</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">early_stopping_rounds</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span>
+                    <span class="p">)</span>
+                <span class="p">],</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LightGBMWrapper.predict_proba">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.LightGBMWrapper.predict_proba">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict_proba</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Predict class probabilities for the given features.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: Feature matrix to evaluate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Predicted class probabilities.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LightGBMWrapper.predict">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.LightGBMWrapper.predict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Predict discrete class labels for the given features.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: Feature matrix to evaluate.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Predicted class labels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="evaluate_classifier_throughput">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.evaluate_classifier_throughput">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">evaluate_classifier_throughput</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span>
+    <span class="n">test_dataset</span><span class="p">:</span> <span class="n">TrackDataset</span><span class="p">,</span>
+    <span class="n">batch_sizes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">10000</span><span class="p">),</span>
+    <span class="n">num_runs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Measure the inference throughput of a model across different batch sizes.</span>
+
+<span class="sd">    Executes a warm-up prediction and then measures performance over several iterations</span>
+<span class="sd">    to capture the optimal operational speed per batch size.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        model: A trained classifier instance implementing `predict_proba`.</span>
+<span class="sd">        test_dataset: The dataset object containing testing features (`X`).</span>
+<span class="sd">        batch_sizes: A tuple of integers representing the number of samples</span>
+<span class="sd">            to process in a single batch. Defaults to (1, 1000, 10000).</span>
+<span class="sd">        num_runs: The number of measured timing runs to perform for each batch size.</span>
+<span class="sd">            Defaults to 5.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A dictionary mapping the batch size integer to its calculated throughput</span>
+<span class="sd">        in items processed per second.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">X_test</span> <span class="o">=</span> <span class="n">test_dataset</span><span class="o">.</span><span class="n">X</span>
+
+    <span class="k">for</span> <span class="n">batch_size</span> <span class="ow">in</span> <span class="n">batch_sizes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">batch_size</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">X_test</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="n">batch</span> <span class="o">=</span> <span class="n">X_test</span><span class="p">[:</span><span class="n">batch_size</span><span class="p">]</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+
+        <span class="n">execution_times</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_runs</span><span class="p">):</span>
+            <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+            <span class="n">execution_times</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">)</span>
+
+        <span class="n">min_time</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">execution_times</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="n">batch_size</span><span class="p">]</span> <span class="o">=</span> <span class="n">batch_size</span> <span class="o">/</span> <span class="n">min_time</span>
+
+    <span class="k">return</span> <span class="n">results</span></div>
+
+
+
+<div class="viewcode-block" id="optimize_hyperparameters">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.classifiers.optimize_hyperparameters">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">optimize_hyperparameters</span><span class="p">(</span>
+    <span class="n">estimator</span><span class="p">,</span>
+    <span class="n">param_distributions</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+    <span class="n">train_dataset</span><span class="p">:</span> <span class="n">TrackDataset</span><span class="p">,</span>
+    <span class="n">val_dataset</span><span class="p">:</span> <span class="n">TrackDataset</span><span class="p">,</span>
+    <span class="n">n_iter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="n">random_state</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Perform a randomized hyperparameter search across a predefined validation split.</span>
+
+<span class="sd">    This function securely splits the data by passing an explicit fold array to</span>
+<span class="sd">    `PredefinedSplit`. This ensures that `RandomizedSearchCV` evaluates solely on</span>
+<span class="sd">    the provided validation dataset without mixing test sets.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        estimator: An uninitialized classifier object conforming to the scikit-learn API.</span>
+<span class="sd">        param_distributions: Dictionary containing parameter names (strings) as keys</span>
+<span class="sd">            and lists of parameters or distributions to sample from as values.</span>
+<span class="sd">        train_dataset: The primary dataset used for fitting the model.</span>
+<span class="sd">        val_dataset: The holdout dataset used exclusively for scoring each configuration.</span>
+<span class="sd">        n_iter: The number of parameter settings that are sampled. Defaults to 10.</span>
+<span class="sd">        random_state: The seed used for reproducible random sampling. Defaults to 42.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A dictionary containing the parameter settings that yielded the best</span>
+<span class="sd">        ROC-AUC score on the validation set.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">X_combined</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">train_dataset</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">val_dataset</span><span class="o">.</span><span class="n">X</span><span class="p">])</span>
+    <span class="n">y_combined</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">train_dataset</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">val_dataset</span><span class="o">.</span><span class="n">y</span><span class="p">])</span>
+
+    <span class="n">test_fold</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">),</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">val_dataset</span><span class="p">))]</span>
+    <span class="p">)</span>
+
+    <span class="n">ps</span> <span class="o">=</span> <span class="n">PredefinedSplit</span><span class="p">(</span><span class="n">test_fold</span><span class="p">)</span>
+
+    <span class="n">search</span> <span class="o">=</span> <span class="n">RandomizedSearchCV</span><span class="p">(</span>
+        <span class="n">estimator</span><span class="o">=</span><span class="n">estimator</span><span class="p">,</span>
+        <span class="n">param_distributions</span><span class="o">=</span><span class="n">param_distributions</span><span class="p">,</span>
+        <span class="n">n_iter</span><span class="o">=</span><span class="n">n_iter</span><span class="p">,</span>
+        <span class="n">cv</span><span class="o">=</span><span class="n">ps</span><span class="p">,</span>
+        <span class="n">scoring</span><span class="o">=</span><span class="s2">&quot;roc_auc&quot;</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">,</span>
+        <span class="n">n_jobs</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">search</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_combined</span><span class="p">,</span> <span class="n">y_combined</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">search</span><span class="o">.</span><span class="n">best_params_</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Mikhail Shupliakou, Rafał Oszajca.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

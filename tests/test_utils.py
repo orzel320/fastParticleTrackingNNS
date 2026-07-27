@@ -1,4 +1,5 @@
 import numpy as np
+
 from hep_tracking.utils import calculate_classification_metrics
 
 
@@ -24,7 +25,9 @@ def test_calculate_classification_metrics_threshold_effect():
     y_pred_proba = np.array([0.3, 0.6, 0.4, 0.7])
 
     metrics_low = calculate_classification_metrics(y_true, y_pred_proba, threshold=0.35)
-    metrics_high = calculate_classification_metrics(y_true, y_pred_proba, threshold=0.65)
+    metrics_high = calculate_classification_metrics(
+        y_true, y_pred_proba, threshold=0.65
+    )
 
     assert metrics_low["ROC-AUC"] == metrics_high["ROC-AUC"]
     assert metrics_low["PR-AUC"] == metrics_high["PR-AUC"]

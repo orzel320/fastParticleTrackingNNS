@@ -1,15 +1,16 @@
 """Wrapper classes and evaluation utilities for machine learning classifiers."""
 
+import sys
 import time
 from abc import ABC, abstractmethod
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-import xgboost as xgb
-import lightgbm as lgb
-from sklearn.model_selection import RandomizedSearchCV, PredefinedSplit
-
 from pathlib import Path
-import sys
+
+import lightgbm as lgb
+import numpy as np
+import xgboost as xgb
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import PredefinedSplit, RandomizedSearchCV
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from hep_tracking.dataset import TrackDataset
 
@@ -18,7 +19,13 @@ class BaseClassifier(ABC):
     """Abstract base class defining the standard interface for track classifiers."""
 
     @abstractmethod
-    def fit(self, X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray = None, y_val: np.ndarray = None) -> None:
+    def fit(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_val: np.ndarray = None,
+        y_val: np.ndarray = None,
+    ) -> None:
         """Train the classifier model.
 
         Args:
@@ -61,15 +68,21 @@ class RandomForestWrapper(BaseClassifier):
         """Initialize the Random Forest model.
 
         Args:
-            **kwargs: Keyword arguments passed directly to the underlying 
+            **kwargs: Keyword arguments passed directly to the underlying
                 RandomForestClassifier instance.
         """
         self.model = RandomForestClassifier(**kwargs)
 
-    def fit(self, X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray = None, y_val: np.ndarray = None) -> None:
+    def fit(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_val: np.ndarray = None,
+        y_val: np.ndarray = None,
+    ) -> None:
         """Train the Random Forest model.
 
-        Note that Random Forest does not utilize early stopping natively, so the 
+        Note that Random Forest does not utilize early stopping natively, so the
         validation arrays (`X_val` and `y_val`) are ignored if provided.
 
         Args:
@@ -110,15 +123,21 @@ class XGBoostWrapper(BaseClassifier):
         """Initialize the XGBoost model.
 
         Args:
-            **kwargs: Keyword arguments passed directly to the underlying 
+            **kwargs: Keyword arguments passed directly to the underlying
                 XGBClassifier instance.
         """
         self.model = xgb.XGBClassifier(**kwargs)
 
-    def fit(self, X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray = None, y_val: np.ndarray = None) -> None:
+    def fit(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_val: np.ndarray = None,
+        y_val: np.ndarray = None,
+    ) -> None:
         """Train the XGBoost model.
 
-        If validation data is provided, it is passed to the internal model as an 
+        If validation data is provided, it is passed to the internal model as an
         evaluation set to track performance.
 
         Args:
@@ -157,9 +176,9 @@ class XGBoostWrapper(BaseClassifier):
 
 class LightGBMWrapper(BaseClassifier):
     """Wrapper for the LightGBM classifier, supporting early stopping and validation.
-    
+
     Attributes:
-        early_stopping_rounds: Number of rounds to wait for validation metric 
+        early_stopping_rounds: Number of rounds to wait for validation metric
             improvement before terminating training early.
     """
 
@@ -167,18 +186,24 @@ class LightGBMWrapper(BaseClassifier):
         """Initialize the LightGBM model.
 
         Args:
-            early_stopping_rounds: Consecutive rounds without validation metric 
+            early_stopping_rounds: Consecutive rounds without validation metric
                 improvement needed to trigger early stopping. Defaults to 15.
-            **kwargs: Keyword arguments passed directly to the underlying 
+            **kwargs: Keyword arguments passed directly to the underlying
                 LGBMClassifier instance.
         """
         self.early_stopping_rounds = early_stopping_rounds
         self.model = lgb.LGBMClassifier(**kwargs)
 
-    def fit(self, X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray = None, y_val: np.ndarray = None) -> None:
+    def fit(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_val: np.ndarray = None,
+        y_val: np.ndarray = None,
+    ) -> None:
         """Train the LightGBM model.
 
-        If validation data is provided, the early stopping callback is automatically 
+        If validation data is provided, the early stopping callback is automatically
         attached to the training routine to prevent overfitting.
 
         Args:
@@ -189,10 +214,15 @@ class LightGBMWrapper(BaseClassifier):
         """
         if X_val is not None and y_val is not None:
             self.model.fit(
-                X_train, y_train,
+                X_train,
+                y_train,
                 eval_X=X_val,
                 eval_y=y_val,
-                callbacks=[lgb.early_stopping(stopping_rounds=self.early_stopping_rounds, verbose=False)]
+                callbacks=[
+                    lgb.early_stopping(
+                        stopping_rounds=self.early_stopping_rounds, verbose=False
+                    )
+                ],
             )
         else:
             self.model.fit(X_train, y_train)
@@ -221,26 +251,26 @@ class LightGBMWrapper(BaseClassifier):
 
 
 def evaluate_classifier_throughput(
-    model, 
-    test_dataset: TrackDataset, 
-    batch_sizes: tuple[int, ...] = (1, 1000, 10000), 
-    num_runs: int = 5
+    model,
+    test_dataset: TrackDataset,
+    batch_sizes: tuple[int, ...] = (1, 1000, 10000),
+    num_runs: int = 5,
 ) -> dict[int, float]:
     """Measure the inference throughput of a model across different batch sizes.
 
-    Executes a warm-up prediction and then measures performance over several iterations 
+    Executes a warm-up prediction and then measures performance over several iterations
     to capture the optimal operational speed per batch size.
 
     Args:
         model: A trained classifier instance implementing `predict_proba`.
         test_dataset: The dataset object containing testing features (`X`).
-        batch_sizes: A tuple of integers representing the number of samples 
+        batch_sizes: A tuple of integers representing the number of samples
             to process in a single batch. Defaults to (1, 1000, 10000).
-        num_runs: The number of measured timing runs to perform for each batch size. 
+        num_runs: The number of measured timing runs to perform for each batch size.
             Defaults to 5.
 
     Returns:
-        A dictionary mapping the batch size integer to its calculated throughput 
+        A dictionary mapping the batch size integer to its calculated throughput
         in items processed per second.
     """
     results = {}
@@ -266,22 +296,22 @@ def evaluate_classifier_throughput(
 
 
 def optimize_hyperparameters(
-    estimator, 
-    param_distributions: dict, 
-    train_dataset: TrackDataset, 
-    val_dataset: TrackDataset, 
-    n_iter: int = 10, 
-    random_state: int = 42
+    estimator,
+    param_distributions: dict,
+    train_dataset: TrackDataset,
+    val_dataset: TrackDataset,
+    n_iter: int = 10,
+    random_state: int = 42,
 ) -> dict:
     """Perform a randomized hyperparameter search across a predefined validation split.
 
-    This function securely splits the data by passing an explicit fold array to 
-    `PredefinedSplit`. This ensures that `RandomizedSearchCV` evaluates solely on 
+    This function securely splits the data by passing an explicit fold array to
+    `PredefinedSplit`. This ensures that `RandomizedSearchCV` evaluates solely on
     the provided validation dataset without mixing test sets.
 
     Args:
         estimator: An uninitialized classifier object conforming to the scikit-learn API.
-        param_distributions: Dictionary containing parameter names (strings) as keys 
+        param_distributions: Dictionary containing parameter names (strings) as keys
             and lists of parameters or distributions to sample from as values.
         train_dataset: The primary dataset used for fitting the model.
         val_dataset: The holdout dataset used exclusively for scoring each configuration.
@@ -289,17 +319,16 @@ def optimize_hyperparameters(
         random_state: The seed used for reproducible random sampling. Defaults to 42.
 
     Returns:
-        A dictionary containing the parameter settings that yielded the best 
+        A dictionary containing the parameter settings that yielded the best
         ROC-AUC score on the validation set.
     """
     X_combined = np.vstack([train_dataset.X, val_dataset.X])
     y_combined = np.concatenate([train_dataset.y, val_dataset.y])
 
-    test_fold = np.concatenate([
-        np.full(len(train_dataset), -1),
-        np.zeros(len(val_dataset))
-    ])
-    
+    test_fold = np.concatenate(
+        [np.full(len(train_dataset), -1), np.zeros(len(val_dataset))]
+    )
+
     ps = PredefinedSplit(test_fold)
 
     search = RandomizedSearchCV(
@@ -309,7 +338,7 @@ def optimize_hyperparameters(
         cv=ps,
         scoring="roc_auc",
         random_state=random_state,
-        n_jobs=-1
+        n_jobs=-1,
     )
 
     search.fit(X_combined, y_combined)

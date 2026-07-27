@@ -1,11 +1,8 @@
 import numpy as np
+
 from hep_tracking.config import TrackSimulationConfig
 from hep_tracking.data import generate_tracks
-from hep_tracking.models import (
-    NumpyBruteForce,
-    ScipyCKDTree,
-    SklearnKNN,
-)
+from hep_tracking.models import NumpyBruteForce, ScipyCKDTree, SklearnKNN
 
 
 def test_knn_implementations_consistency():
@@ -27,7 +24,9 @@ def test_knn_implementations_consistency():
 
     reference_model = NumpyBruteForce()
     reference_model.fit(features)
-    reference_distances, reference_indices = reference_model.kneighbors(features, k=k_neighbors)
+    reference_distances, reference_indices = reference_model.kneighbors(
+        features, k=k_neighbors
+    )
 
     implementations_to_test = [
         ScipyCKDTree(),

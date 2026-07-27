@@ -1,0 +1,294 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>hep_tracking.data &mdash; HEP Tracking 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            HEP Tracking
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">HEP Tracking</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">hep_tracking.data</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for hep_tracking.data</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Synthetic data generation for high-energy physics tracking datasets.</span>
+
+<span class="sd">This module provides functions to simulate particle trajectories, generate</span>
+<span class="sd">background noise, and package these into complete datasets saved as</span>
+<span class="sd">compressed numpy arrays.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">hep_tracking.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatasetConfig</span><span class="p">,</span> <span class="n">TrackSimulationConfig</span>
+
+
+<div class="viewcode-block" id="generate_tracks">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.data.generate_tracks">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_tracks</span><span class="p">(</span>
+    <span class="n">n_tracks</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n_noise</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">TrackSimulationConfig</span><span class="p">,</span> <span class="n">seed_offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate synthetic particle tracks and noise hits for a single event.</span>
+
+<span class="sd">    Simulates linear particle trajectories originating near the origin (vertex)</span>
+<span class="sd">    and propagating outwards. Adds Gaussian noise to the positions and directional</span>
+<span class="sd">    vectors, and uniformly distributes random noise hits throughout the volume.</span>
+<span class="sd">    The returned arrays are randomly permuted so the sequence of hits does not</span>
+<span class="sd">    trivially reveal the underlying tracks.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        n_tracks: The number of distinct particle tracks to simulate.</span>
+<span class="sd">        n_noise: The total number of uncorrelated noise hits to inject.</span>
+<span class="sd">        config: The simulation parameters controlling geometry and variance.</span>
+<span class="sd">        seed_offset: An integer added to the base configuration seed to ensure</span>
+<span class="sd">            uncorrelated randomness across different events. Defaults to 0.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A tuple containing two arrays:</span>
+<span class="sd">            - features: A (N, 5) array of hit features representing position and direction.</span>
+<span class="sd">            - labels: A (N,) array of track IDs, where -1 indicates a noise hit.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">seed</span> <span class="o">+</span> <span class="n">seed_offset</span><span class="p">)</span>
+
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">config</span><span class="o">.</span><span class="n">vertex_spread</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">vertex_spread</span><span class="p">,</span> <span class="p">(</span><span class="n">n_tracks</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="n">thetas</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.3</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">-</span> <span class="mf">0.3</span><span class="p">,</span> <span class="n">n_tracks</span><span class="p">)</span>
+    <span class="n">phis</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">n_tracks</span><span class="p">)</span>
+
+    <span class="n">directions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">thetas</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phis</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">thetas</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phis</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">thetas</span><span class="p">)]</span>
+    <span class="p">)</span>
+
+    <span class="n">step_sizes</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">hits_per_track</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">config</span><span class="o">.</span><span class="n">r_max</span> <span class="o">/</span> <span class="n">config</span><span class="o">.</span><span class="n">hits_per_track</span>
+    <span class="p">)</span>
+    <span class="n">step_sizes</span> <span class="o">=</span> <span class="n">step_sizes</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">hits_per_track</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">positions</span> <span class="o">=</span> <span class="n">vertices</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+</span> <span class="n">step_sizes</span> <span class="o">*</span> <span class="n">directions</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">positions</span> <span class="o">+=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">sigma_pos</span><span class="p">,</span> <span class="n">positions</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="n">dx_pred</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">directions</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span>
+        <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">sigma_dir</span><span class="p">,</span> <span class="p">(</span><span class="n">n_tracks</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">hits_per_track</span><span class="p">))</span>
+    <span class="p">)</span> <span class="o">*</span> <span class="n">config</span><span class="o">.</span><span class="n">dir_scale</span>
+    <span class="n">dy_pred</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">directions</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">sigma_dir</span><span class="p">,</span> <span class="p">(</span><span class="n">n_tracks</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">hits_per_track</span><span class="p">))</span>
+    <span class="p">)</span> <span class="o">*</span> <span class="n">config</span><span class="o">.</span><span class="n">dir_scale</span>
+
+    <span class="n">track_features</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">positions</span><span class="p">,</span> <span class="n">dx_pred</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">dy_pred</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span>
+    <span class="p">)</span>
+    <span class="n">track_features</span> <span class="o">=</span> <span class="n">track_features</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+
+    <span class="n">track_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n_tracks</span><span class="p">),</span> <span class="n">config</span><span class="o">.</span><span class="n">hits_per_track</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">n_noise</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">noise_pos</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">150</span><span class="p">,</span> <span class="mi">150</span><span class="p">,</span> <span class="p">(</span><span class="n">n_noise</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">noise_ct</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n_noise</span><span class="p">)</span>
+        <span class="n">noise_ph</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">n_noise</span><span class="p">)</span>
+        <span class="n">noise_st</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">noise_ct</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="n">noise_dx</span> <span class="o">=</span> <span class="n">noise_st</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">noise_ph</span><span class="p">)</span> <span class="o">*</span> <span class="n">config</span><span class="o">.</span><span class="n">dir_scale</span>
+        <span class="n">noise_dy</span> <span class="o">=</span> <span class="n">noise_st</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">noise_ph</span><span class="p">)</span> <span class="o">*</span> <span class="n">config</span><span class="o">.</span><span class="n">dir_scale</span>
+
+        <span class="n">noise_features</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">([</span><span class="n">noise_pos</span><span class="p">,</span> <span class="n">noise_dx</span><span class="p">,</span> <span class="n">noise_dy</span><span class="p">])</span>
+        <span class="n">noise_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n_noise</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">features_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">track_features</span><span class="p">,</span> <span class="n">noise_features</span><span class="p">])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">labels_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">track_ids</span><span class="p">,</span> <span class="n">noise_ids</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">features_array</span> <span class="o">=</span> <span class="n">track_features</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">labels_array</span> <span class="o">=</span> <span class="n">track_ids</span>
+
+    <span class="n">permutation</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">features_array</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">features_array</span><span class="p">[</span><span class="n">permutation</span><span class="p">],</span> <span class="n">labels_array</span><span class="p">[</span><span class="n">permutation</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="generate_datasets">
+<a class="viewcode-back" href="../../hep_tracking.html#hep_tracking.data.generate_datasets">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_datasets</span><span class="p">(</span><span class="n">configs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">DatasetConfig</span><span class="p">],</span> <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;data&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate and serialize multiple synthetic datasets based on configurations.</span>
+
+<span class="sd">    Iterates through the provided dataset configurations, calculating the required</span>
+<span class="sd">    number of events and hits per event. It aggregates the generated features,</span>
+<span class="sd">    labels, and event IDs, then saves them as compressed `.npz` archives to the</span>
+<span class="sd">    specified output directory. Track IDs are offset globally across events to</span>
+<span class="sd">    ensure uniqueness within a single dataset.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        configs: A list of configurations detailing the size and simulation</span>
+<span class="sd">            parameters for each target dataset.</span>
+<span class="sd">        output_dir: The target directory path where the `.npz` files will be saved.</span>
+<span class="sd">            The directory is created if it does not exist. Defaults to &quot;data&quot;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">output_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_dir</span><span class="p">)</span>
+    <span class="n">output_path</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">config</span> <span class="ow">in</span> <span class="n">configs</span><span class="p">:</span>
+        <span class="n">n_events</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">target_hits</span> <span class="o">//</span> <span class="n">config</span><span class="o">.</span><span class="n">max_hits_per_event</span><span class="p">)</span>
+        <span class="n">hits_per_event</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">target_hits</span> <span class="o">//</span> <span class="n">n_events</span>
+
+        <span class="n">n_noise_hits</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">hits_per_event</span> <span class="o">*</span> <span class="n">config</span><span class="o">.</span><span class="n">simulation_params</span><span class="o">.</span><span class="n">noise_ratio</span><span class="p">)</span>
+        <span class="n">n_tracks_per_event</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">hits_per_event</span> <span class="o">-</span> <span class="n">n_noise_hits</span>
+        <span class="p">)</span> <span class="o">//</span> <span class="n">config</span><span class="o">.</span><span class="n">simulation_params</span><span class="o">.</span><span class="n">hits_per_track</span>
+
+        <span class="n">all_features</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">all_labels</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">all_event_ids</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">global_track_offset</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">event_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_events</span><span class="p">):</span>
+            <span class="n">features</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">generate_tracks</span><span class="p">(</span>
+                <span class="n">n_tracks</span><span class="o">=</span><span class="n">n_tracks_per_event</span><span class="p">,</span>
+                <span class="n">n_noise</span><span class="o">=</span><span class="n">n_noise_hits</span><span class="p">,</span>
+                <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">simulation_params</span><span class="p">,</span>
+                <span class="n">seed_offset</span><span class="o">=</span><span class="n">event_idx</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="n">signal_mask</span> <span class="o">=</span> <span class="n">labels</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="n">labels</span><span class="p">[</span><span class="n">signal_mask</span><span class="p">]</span> <span class="o">+=</span> <span class="n">global_track_offset</span>
+            <span class="n">global_track_offset</span> <span class="o">+=</span> <span class="n">n_tracks_per_event</span>
+
+            <span class="n">event_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">),</span> <span class="n">event_idx</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+
+            <span class="n">all_features</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">features</span><span class="p">)</span>
+            <span class="n">all_labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+            <span class="n">all_event_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">event_ids</span><span class="p">)</span>
+
+        <span class="n">final_features</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">all_features</span><span class="p">)</span>
+        <span class="n">final_labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">all_labels</span><span class="p">)</span>
+        <span class="n">final_event_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">all_event_ids</span><span class="p">)</span>
+
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">output_path</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;dataset_</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.npz&quot;</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">savez_compressed</span><span class="p">(</span>
+            <span class="n">filename</span><span class="p">,</span> <span class="n">X</span><span class="o">=</span><span class="n">final_features</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="n">final_labels</span><span class="p">,</span> <span class="n">event_id</span><span class="o">=</span><span class="n">final_event_ids</span>
+        <span class="p">)</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">project_root</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parents</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">data_output_dir</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">project_root</span> <span class="o">/</span> <span class="s2">&quot;data&quot;</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Katalog wyjściowy: </span><span class="si">{</span><span class="n">data_output_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Przygotowywanie konfiguracji...&quot;</span><span class="p">)</span>
+
+    <span class="n">easy_sim</span> <span class="o">=</span> <span class="n">TrackSimulationConfig</span><span class="p">(</span>
+        <span class="n">hits_per_track</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+        <span class="n">noise_ratio</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+        <span class="n">sigma_pos</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+        <span class="n">sigma_dir</span><span class="o">=</span><span class="mf">0.005</span><span class="p">,</span>
+        <span class="n">vertex_spread</span><span class="o">=</span><span class="mf">80.0</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">hard_sim</span> <span class="o">=</span> <span class="n">TrackSimulationConfig</span><span class="p">(</span>
+        <span class="n">hits_per_track</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
+        <span class="n">noise_ratio</span><span class="o">=</span><span class="mf">0.20</span><span class="p">,</span>
+        <span class="n">sigma_pos</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">sigma_dir</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span>
+        <span class="n">vertex_spread</span><span class="o">=</span><span class="mf">20.0</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">target_sizes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;1k&quot;</span><span class="p">:</span> <span class="mi">1_000</span><span class="p">,</span> <span class="s2">&quot;10k&quot;</span><span class="p">:</span> <span class="mi">10_000</span><span class="p">,</span> <span class="s2">&quot;100k&quot;</span><span class="p">:</span> <span class="mi">100_000</span><span class="p">,</span> <span class="s2">&quot;1M&quot;</span><span class="p">:</span> <span class="mi">1_000_000</span><span class="p">}</span>
+    <span class="n">configs</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">size_label</span><span class="p">,</span> <span class="n">size_val</span> <span class="ow">in</span> <span class="n">target_sizes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">configs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">DatasetConfig</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;easy_</span><span class="si">{</span><span class="n">size_label</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">size_val</span><span class="p">,</span> <span class="n">easy_sim</span><span class="p">))</span>
+        <span class="n">configs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">DatasetConfig</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;hard_</span><span class="si">{</span><span class="n">size_label</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">size_val</span><span class="p">,</span> <span class="n">hard_sim</span><span class="p">))</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Rozpoczynam generowanie zbiorów danych...&quot;</span><span class="p">)</span>
+    <span class="n">generate_datasets</span><span class="p">(</span><span class="n">configs</span><span class="p">,</span> <span class="n">output_dir</span><span class="o">=</span><span class="n">data_output_dir</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Generowanie zbiorów zakończone sukcesem!&quot;</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Mikhail Shupliakou, Rafał Oszajca.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

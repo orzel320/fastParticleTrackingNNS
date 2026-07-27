@@ -18,6 +18,7 @@ class TrackSimulationConfig:
         dir_scale: Scaling factor applied to directional vectors. Defaults to 60.0.[cite: 3]
         seed: Random seed for generating reproducible tracks. Defaults to 42.[cite: 3]
     """
+
     hits_per_track: int
     noise_ratio: float
     sigma_pos: float
@@ -35,11 +36,12 @@ class DatasetConfig:
     Attributes:
         name: Unique identifier for the generated dataset.[cite: 3]
         target_hits: The total approximate number of hits desired across the entire dataset.[cite: 3]
-        simulation_params: Track simulation configuration detailing how individual 
+        simulation_params: Track simulation configuration detailing how individual
             events should be generated.[cite: 3]
-        max_hits_per_event: Maximum number of hits allowed in a single generated event. 
+        max_hits_per_event: Maximum number of hits allowed in a single generated event.
             Defaults to 10_000.[cite: 3]
     """
+
     name: str
     target_hits: int
     simulation_params: TrackSimulationConfig
@@ -52,11 +54,12 @@ class KNNModelConfig:
 
     Attributes:
         name: Human-readable identifier for the model configuration.[cite: 3]
-        model_factory: A callable, such as a class constructor, that creates 
+        model_factory: A callable, such as a class constructor, that creates
             the model instance.[cite: 3]
-        model_kwargs: Dictionary of keyword arguments to unpack and pass into 
+        model_kwargs: Dictionary of keyword arguments to unpack and pass into
             the model factory during instantiation. Defaults to an empty dictionary.[cite: 3]
     """
+
     name: str
     model_factory: Callable[..., Any]
     model_kwargs: dict[str, Any] = field(default_factory=dict)
@@ -68,11 +71,12 @@ class ClassifierModelConfig:
 
     Attributes:
         name: Human-readable identifier for the classifier configuration.[cite: 3]
-        model_factory: A callable, such as a class constructor, that creates 
+        model_factory: A callable, such as a class constructor, that creates
             the classifier instance.[cite: 3]
-        model_kwargs: Dictionary of keyword arguments to unpack and pass into 
+        model_kwargs: Dictionary of keyword arguments to unpack and pass into
             the model factory during instantiation. Defaults to an empty dictionary.[cite: 3]
     """
+
     name: str
     model_factory: Callable[..., Any]
     model_kwargs: dict[str, Any] = field(default_factory=dict)

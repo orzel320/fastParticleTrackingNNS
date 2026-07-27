@@ -1,6 +1,8 @@
 import numpy as np
+
 from hep_tracking.dataset import TrackDataset
-from hep_tracking.features import compute_pair_features, create_pair_dataset, split_by_event
+from hep_tracking.features import (compute_pair_features, create_pair_dataset,
+                                   split_by_event)
 
 
 def test_compute_pair_features_shape_and_symmetry():
@@ -40,14 +42,16 @@ def test_create_pair_dataset_excludes_noise_and_self_pairs():
     dataset = TrackDataset(X=features, y=labels, event_ids=event_ids)
 
     # każdy hit ma jako kandydata samego siebie oraz hit szumu
-    candidate_indices = np.array([
-        [0, 2],
-        [1, 3],
-        [2, 0],
-        [3, 1],
-        [4, 2],
-        [5, 3],
-    ])
+    candidate_indices = np.array(
+        [
+            [0, 2],
+            [1, 3],
+            [2, 0],
+            [3, 1],
+            [4, 2],
+            [5, 3],
+        ]
+    )
 
     pairs = create_pair_dataset(
         dataset=dataset,

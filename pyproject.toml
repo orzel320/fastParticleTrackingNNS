@@ -38,6 +38,11 @@ dev = [
     "jupyter>=1.1.1"
 ]
 
+docs = [
+    "sphinx>=8.0.0",
+    "sphinx-rtd-theme>=3.0.0"
+]
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-ra -q"

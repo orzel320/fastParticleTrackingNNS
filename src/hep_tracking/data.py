@@ -1,37 +1,36 @@
 """Synthetic data generation for high-energy physics tracking datasets.
 
-This module provides functions to simulate particle trajectories, generate 
-background noise, and package these into complete datasets saved as 
+This module provides functions to simulate particle trajectories, generate
+background noise, and package these into complete datasets saved as
 compressed numpy arrays.
 """
 
-from pathlib import Path
-import numpy as np
 import sys
+from pathlib import Path
+
+import numpy as np
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from hep_tracking.config import TrackSimulationConfig, DatasetConfig
+from hep_tracking.config import DatasetConfig, TrackSimulationConfig
+
 
 def generate_tracks(
-    n_tracks: int,
-    n_noise: int,
-    config: TrackSimulationConfig,
-    seed_offset: int = 0
+    n_tracks: int, n_noise: int, config: TrackSimulationConfig, seed_offset: int = 0
 ) -> tuple[np.ndarray, np.ndarray]:
     """Generate synthetic particle tracks and noise hits for a single event.
 
-    Simulates linear particle trajectories originating near the origin (vertex) 
-    and propagating outwards. Adds Gaussian noise to the positions and directional 
+    Simulates linear particle trajectories originating near the origin (vertex)
+    and propagating outwards. Adds Gaussian noise to the positions and directional
     vectors, and uniformly distributes random noise hits throughout the volume.
-    The returned arrays are randomly permuted so the sequence of hits does not 
+    The returned arrays are randomly permuted so the sequence of hits does not
     trivially reveal the underlying tracks.
 
     Args:
         n_tracks: The number of distinct particle tracks to simulate.
         n_noise: The total number of uncorrelated noise hits to inject.
         config: The simulation parameters controlling geometry and variance.
-        seed_offset: An integer added to the base configuration seed to ensure 
+        seed_offset: An integer added to the base configuration seed to ensure
             uncorrelated randomness across different events. Defaults to 0.
 
     Returns:
@@ -45,22 +44,30 @@ def generate_tracks(
     thetas = rng.uniform(0.3, np.pi - 0.3, n_tracks)
     phis = rng.uniform(-np.pi, np.pi, n_tracks)
 
-    directions = np.column_stack([
-        np.sin(thetas) * np.cos(phis), 
-        np.sin(thetas) * np.sin(phis), 
-        np.cos(thetas)
-    ])
+    directions = np.column_stack(
+        [np.sin(thetas) * np.cos(phis), np.sin(thetas) * np.sin(phis), np.cos(thetas)]
+    )
 
-    step_sizes = np.arange(1, config.hits_per_track + 1) * config.r_max / config.hits_per_track
+    step_sizes = (
+        np.arange(1, config.hits_per_track + 1) * config.r_max / config.hits_per_track
+    )
     step_sizes = step_sizes.reshape(1, config.hits_per_track, 1)
 
     positions = vertices[:, None, :] + step_sizes * directions[:, None, :]
     positions += rng.normal(0, config.sigma_pos, positions.shape)
 
-    dx_pred = (directions[:, 0:1] + rng.normal(0, config.sigma_dir, (n_tracks, config.hits_per_track))) * config.dir_scale
-    dy_pred = (directions[:, 1:2] + rng.normal(0, config.sigma_dir, (n_tracks, config.hits_per_track))) * config.dir_scale
+    dx_pred = (
+        directions[:, 0:1]
+        + rng.normal(0, config.sigma_dir, (n_tracks, config.hits_per_track))
+    ) * config.dir_scale
+    dy_pred = (
+        directions[:, 1:2]
+        + rng.normal(0, config.sigma_dir, (n_tracks, config.hits_per_track))
+    ) * config.dir_scale
 
-    track_features = np.concatenate([positions, dx_pred[..., None], dy_pred[..., None]], axis=2)
+    track_features = np.concatenate(
+        [positions, dx_pred[..., None], dy_pred[..., None]], axis=2
+    )
     track_features = track_features.reshape(-1, 5)
 
     track_ids = np.repeat(np.arange(n_tracks), config.hits_per_track)
@@ -87,19 +94,20 @@ def generate_tracks(
 
     return features_array[permutation], labels_array[permutation]
 
+
 def generate_datasets(configs: list[DatasetConfig], output_dir: str = "data") -> None:
     """Generate and serialize multiple synthetic datasets based on configurations.
 
-    Iterates through the provided dataset configurations, calculating the required 
-    number of events and hits per event. It aggregates the generated features, 
-    labels, and event IDs, then saves them as compressed `.npz` archives to the 
-    specified output directory. Track IDs are offset globally across events to 
+    Iterates through the provided dataset configurations, calculating the required
+    number of events and hits per event. It aggregates the generated features,
+    labels, and event IDs, then saves them as compressed `.npz` archives to the
+    specified output directory. Track IDs are offset globally across events to
     ensure uniqueness within a single dataset.
 
     Args:
-        configs: A list of configurations detailing the size and simulation 
+        configs: A list of configurations detailing the size and simulation
             parameters for each target dataset.
-        output_dir: The target directory path where the `.npz` files will be saved. 
+        output_dir: The target directory path where the `.npz` files will be saved.
             The directory is created if it does not exist. Defaults to "data".
     """
     output_path = Path(output_dir)
@@ -110,7 +118,9 @@ def generate_datasets(configs: list[DatasetConfig], output_dir: str = "data") ->
         hits_per_event = config.target_hits // n_events
 
         n_noise_hits = int(hits_per_event * config.simulation_params.noise_ratio)
-        n_tracks_per_event = (hits_per_event - n_noise_hits) // config.simulation_params.hits_per_track
+        n_tracks_per_event = (
+            hits_per_event - n_noise_hits
+        ) // config.simulation_params.hits_per_track
 
         all_features = []
         all_labels = []
@@ -122,7 +132,7 @@ def generate_datasets(configs: list[DatasetConfig], output_dir: str = "data") ->
                 n_tracks=n_tracks_per_event,
                 n_noise=n_noise_hits,
                 config=config.simulation_params,
-                seed_offset=event_idx
+                seed_offset=event_idx,
             )
 
             signal_mask = labels != -1
@@ -140,7 +150,10 @@ def generate_datasets(configs: list[DatasetConfig], output_dir: str = "data") ->
         final_event_ids = np.concatenate(all_event_ids)
 
         filename = output_path / f"dataset_{config.name}.npz"
-        np.savez_compressed(filename, X=final_features, y=final_labels, event_id=final_event_ids)
+        np.savez_compressed(
+            filename, X=final_features, y=final_labels, event_id=final_event_ids
+        )
+
 
 if __name__ == "__main__":
     project_root = Path(__file__).resolve().parents[2]
@@ -150,19 +163,19 @@ if __name__ == "__main__":
     print("Przygotowywanie konfiguracji...")
 
     easy_sim = TrackSimulationConfig(
-        hits_per_track=10, 
-        noise_ratio=0.01, 
-        sigma_pos=0.05, 
-        sigma_dir=0.005, 
-        vertex_spread=80.0
+        hits_per_track=10,
+        noise_ratio=0.01,
+        sigma_pos=0.05,
+        sigma_dir=0.005,
+        vertex_spread=80.0,
     )
-    
+
     hard_sim = TrackSimulationConfig(
-        hits_per_track=15, 
-        noise_ratio=0.20, 
-        sigma_pos=0.5, 
-        sigma_dir=0.02, 
-        vertex_spread=20.0
+        hits_per_track=15,
+        noise_ratio=0.20,
+        sigma_pos=0.5,
+        sigma_dir=0.02,
+        vertex_spread=20.0,
     )
 
     target_sizes = {"1k": 1_000, "10k": 10_000, "100k": 100_000, "1M": 1_000_000}
