@@ -1,17 +1,16 @@
-.PHONY: all clean install data_pipeline generate candidates test
-	
+.PHONY: all clean install install-gpu data_pipeline generate candidates test format lint notebook
+
 all: install clean data_pipeline test
 
 install:
 	python -m pip install -e .[dev]
 
+install-gpu:
+	python -m pip install -e .[dev,gpu]
+
 clean:
 	rm -rf data/
-	rm -rf .pytest_cache/
-	rm -rf .ipynb_checkpoints/
-	rm -rf src/hep_tracking/__pycache__/
-	rm -rf tests/__pycache__/
-	rm -rf *.egg-info
+	rm -f *.pdf
 
 data_pipeline: generate candidates
 
@@ -23,3 +22,11 @@ candidates:
 
 test:
 	pytest tests/
+
+format:
+	black src tests
+	isort src tests
+
+lint:
+	black --check src tests
+	isort --check-only src tests

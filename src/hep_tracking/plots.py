@@ -503,11 +503,25 @@ def plot_time_vs_size(df: pd.DataFrame, output_path: str = None):
         df: DataFrame containing evaluation results with 'Hits', 'Time_Total_s', and 'Pipeline'.
         output_path: Optional file path to save the generated figure.
     """
+    def parse_size(name):
+        val = str(name).split('_')[-1]
+        if val.endswith('k'): 
+            return int(val[:-1]) * 1000
+        elif val.endswith('M'): 
+            return int(val[:-1]) * 1000000
+        return int(val)
+    
+    plot_df = df.copy()
+    plot_df["Total_Size"] = plot_df["Dataset"].apply(parse_size)
+    
+    summary = plot_df.groupby(["Pipeline", "Total_Size"])["Time_Total_s"].sum().reset_index()
+
+    # 4. Generowanie wykresu
     plt.figure(figsize=(10, 6))
     
     sns.lineplot(
-        data=df, 
-        x="Hits", 
+        data=summary, 
+        x="Total_Size", 
         y="Time_Total_s", 
         hue="Pipeline", 
         marker="o",
@@ -515,16 +529,18 @@ def plot_time_vs_size(df: pd.DataFrame, output_path: str = None):
         linewidth=2
     )
 
-    plt.title("Scalability: Execution Time vs Event Size", fontsize=14, fontweight="bold")
-    plt.xlabel("Number of Hits in Event", fontsize=12)
-    plt.ylabel("Total Processing Time (seconds)", fontsize=12)
+    plt.title("Skalowalność: Całkowity czas przetwarzania vs Wielkość zbioru", fontsize=14, fontweight="bold")
+    plt.xlabel("Całkowita liczba hitów w zbiorze", fontsize=12)
+    plt.ylabel("Całkowity czas przetwarzania (sekundy)", fontsize=12)
+    
+    plt.xscale("log")
     plt.yscale("log")
     plt.grid(True, which="both", ls="--", alpha=0.5)
     plt.legend(title="Pipeline", bbox_to_anchor=(1.05, 1), loc="upper left")
     
     plt.tight_layout()
     if output_path:
-        plt.savefig(output_path, bbox_inches="tight") # DPI nie jest wymagane dla PDF, bo to wektory
+        plt.savefig(output_path, bbox_inches="tight") 
     
     plt.show()
     plt.close()

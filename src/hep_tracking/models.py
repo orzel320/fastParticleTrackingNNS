@@ -9,13 +9,18 @@ from abc import ABC, abstractmethod
 from typing import Literal
 
 import numpy as np
-import faiss
 import hnswlib
 from scipy.spatial import cKDTree
 from sklearn.neighbors import NearestNeighbors
 
-_GPU_RES = None
-_GPU_AVAILABLE = None
+import faiss
+if hasattr(faiss, 'StandardGpuResources'):
+    _GPU_RES = faiss.StandardGpuResources()
+    HAS_FAISS_GPU = True
+else:
+    _GPU_RES = None
+    HAS_FAISS_GPU = False
+
 
 
 def _get_gpu_resources():
@@ -321,6 +326,7 @@ try:
             return nearest_distances, nearest_indices
 
 except ImportError:
+    print("Skipping due to lack of CuPy library")
     pass
 
 
@@ -340,7 +346,7 @@ class FaissExact(BaseKNN):
                 uses GPU when one is available, otherwise falls back to CPU
                 transparently.
         """
-        self.use_gpu = _resolve_use_gpu(use_gpu)
+        self.use_gpu = use_gpu if HAS_FAISS_GPU else False
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -398,7 +404,7 @@ class FaissIVFFlat(BaseKNN):
         """
         self.nlist = nlist
         self.nprobe = nprobe
-        self.use_gpu = _resolve_use_gpu(use_gpu)
+        self.use_gpu = use_gpu if HAS_FAISS_GPU else False
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
@@ -470,7 +476,7 @@ class FaissIVFPQ(BaseKNN):
         self.m = m
         self.nbits = nbits
         self.nprobe = nprobe
-        self.use_gpu = _resolve_use_gpu(use_gpu)
+        self.use_gpu = use_gpu if HAS_FAISS_GPU else False
         self.index = None
 
     def fit(self, X: np.ndarray) -> None:
